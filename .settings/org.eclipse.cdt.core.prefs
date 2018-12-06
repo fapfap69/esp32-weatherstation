@@ -1,0 +1,6 @@
+eclipse.preferences.version=1
+environment/project/cdt.managedbuild.config.gnu.cross.exe.debug.230924483/IDF_PATH/delimiter=\:
+environment/project/cdt.managedbuild.config.gnu.cross.exe.debug.230924483/IDF_PATH/operation=append
+environment/project/cdt.managedbuild.config.gnu.cross.exe.debug.230924483/IDF_PATH/value=/Users/fap/esp/esp-idf
+environment/project/cdt.managedbuild.config.gnu.cross.exe.debug.230924483/append=true
+environment/project/cdt.managedbuild.config.gnu.cross.exe.debug.230924483/appendContributed=true

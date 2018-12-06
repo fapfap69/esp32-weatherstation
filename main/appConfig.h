@@ -1,0 +1,115 @@
+/*
+ * appConfig.h
+ *
+ *  Created on: Nov 26, 2018
+ *      Author: fap
+ */
+
+#ifndef MAIN_APPCONFIG_H_
+#define MAIN_APPCONFIG_H_
+
+#include "driver/gpio.h"
+
+#define VERSION "0.0"
+#define APPLICATIONNAME "appLoader"
+
+#define DATA_PARTITION_NAME "nvs"
+#define DEVICE_PARTITION_NAME "appldata"
+
+#define WIFI_LEN_SSID 32
+#define WIFI_LEN_PASSWORD 64
+#define WIFI_SSD	"AppleFap"
+#define WIFI_PASSWORD	"PaperinO"
+#define WIFI_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
+
+#define WEATERSTATION_NAME "OGIGGIA"
+#define WEATERSTATION_TZ "CET+1CEST,M3.5.0/2,M10.5.0/3"
+#define WEATERSTATION_ALTITUDE	350
+#define WEATERSTATION_LONGITUDE	1.258
+#define WEATERSTATION_LATITUDE	41.152
+#define WEATERSTATION_ALTITUDE_S	"350 msl"
+#define WEATERSTATION_LONGITUDE_S	"1º10' E"
+#define WEATERSTATION_LATITUDE_S	"41º15' N"
+
+#define TEMPERATURE_IS_CELSIUS true
+
+
+#define MQTTCL_LEN_BROKER	256
+#define MQTTCL_LEN_STATION	256
+#define MQTTCL_BROKER_URL		"mqtt://192.168.0.5:1883"
+#define MQTTCL_STATION_NAME	"pippo"
+
+#define PIN_BTN_BOOT	GPIO_NUM_0
+#define PIN_BOARD_LED	GPIO_NUM_2
+
+#define PIN_UART0_TX	GPIO_NUM_1
+#define PIN_UART0_RX	GPIO_NUM_3
+//#define PIN_UART1_TX	GPIO_NUM_9
+//#define PIN_UART1_RX	GPIO_NUM_10
+//#define PIN_UART2_TX	GPIO_NUM_17
+//#define PIN_UART2_RX	GPIO_NUM_16
+
+//#define PIN_DIG_0		GPIO_NUM_16
+//#define PIN_DIG_1		GPIO_NUM_17
+#define PIN_DIG_2		GPIO_NUM_5
+#define PIN_DIG_3		GPIO_NUM_18
+#define PIN_DIG_4		GPIO_NUM_19
+//#define PIN_DIG_6		GPIO_NUM_21
+//#define PIN_DIG_7		GPIO_NUM_3
+//#define PIN_DIG_8		GPIO_NUM_1
+//#define PIN_DIG_9		GPIO_NUM_22
+#define PIN_DIG_10		GPIO_NUM_23
+
+
+#define PIN_DAC_1		GPIO_NUM_25
+#define PIN_DAC_2		GPIO_NUM_26
+
+#define PIN_ADC_0		GPIO_NUM_36
+#define PIN_ADC_3		GPIO_NUM_39
+#define PIN_ADC_4		GPIO_NUM_32
+#define PIN_ADC_5		GPIO_NUM_33
+#define PIN_ADC_6		GPIO_NUM_34
+#define PIN_ADC_7		GPIO_NUM_35
+#define PIN_ADC_10		GPIO_NUM_4
+#define PIN_ADC_11		GPIO_NUM_0
+#define PIN_ADC_12		GPIO_NUM_2
+#define PIN_ADC_13		GPIO_NUM_15
+#define PIN_ADC_14		GPIO_NUM_13
+#define PIN_ADC_15		GPIO_NUM_12
+#define PIN_ADC_16		GPIO_NUM_14
+#define PIN_ADC_17		GPIO_NUM_27
+#define PIN_ADC_18		GPIO_NUM_25
+#define PIN_ADC_19		GPIO_NUM_26
+#define PIN_ADC_14		GPIO_NUM_13
+
+#define PIN_I2C_0_SCL		GPIO_NUM_22
+#define PIN_I2C_0_SDA		GPIO_NUM_21
+#define PIN_I2C_1_SCL		GPIO_NUM_17
+#define PIN_I2C_1_SDA		GPIO_NUM_16
+
+#define PIN_FLASH_0		GPIO_NUM_6
+#define PIN_FLASH_1		GPIO_NUM_7
+#define PIN_FLASH_2		GPIO_NUM_8
+#define PIN_FLASH_3		GPIO_NUM_9
+#define PIN_FLASH_4		GPIO_NUM_10
+#define PIN_FLASH_5		GPIO_NUM_11
+
+#define PIN_TOUCH_0		GPIO_NUM_4
+#define PIN_TOUCH_1		GPIO_NUM_0
+#define PIN_TOUCH_2		GPIO_NUM_2
+#define PIN_TOUCH_3		GPIO_NUM_15
+#define PIN_TOUCH_4		GPIO_NUM_13
+#define PIN_TOUCH_5		GPIO_NUM_12
+#define PIN_TOUCH_6		GPIO_NUM_14
+#define PIN_TOUCH_7		GPIO_NUM_27
+#define PIN_TOUCH_8		GPIO_NUM_33
+#define PIN_TOUCH_9		GPIO_NUM_32
+
+
+
+
+
+
+
+
+#endif /* MAIN_APPCONFIG_H_ */
