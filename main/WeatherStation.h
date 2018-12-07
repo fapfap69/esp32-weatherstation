@@ -9,12 +9,12 @@
 #define MAIN_WEATHERSTATION_H_
 
 #include "appConfig.h"
-#include "lib/counter.h"
-#include "lib/DHThumidity.h"
-#include "lib/Barometer.h"
-#include "lib/i2c.h"
-#include "lib/MLX90393.h"
-#include "lib/mQttClient.h"
+#include "lib/Barometer/Barometer.h"
+#include "lib/counter/counter.h"
+#include "lib/DHThumidity/DHThumidity.h"
+#include "lib/i2c/i2c.h"
+#include "lib/mQttClient/mQttClient.h"
+#include "lib/MLX90393/MLX90393.h"
 
 
 class WeatherStation {

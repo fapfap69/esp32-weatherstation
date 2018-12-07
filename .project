@@ -3,6 +3,7 @@
 	<name>weatherStation1</name>
 	<comment></comment>
 	<projects>
+		<project>Adafruit-GFX-Library</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

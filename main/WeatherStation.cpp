@@ -24,17 +24,16 @@
 
 #include "sdkconfig.h"
 
-#include "lib/Blinker.h"
-#include "lib/NVS.h"
-//#include "lib/WiFi.h"
-#include "lib/counter.h"
-#include "lib/DHThumidity.h"
-#include "lib/Barometer.h"
-#include "lib/i2c.h"
-#include "lib/MLX90393.h"
-
 #include "appConfig.h"
 #include "WeatherStation.h"
+
+#include "lib/Barometer/Barometer.h"
+#include "lib/Blinker/Blinker.h"
+#include "lib/counter/counter.h"
+#include "lib/DHThumidity/DHThumidity.h"
+#include "lib/i2c/i2c.h"
+#include "lib/MLX90393/MLX90393.h"
+#include "lib/NVS/NVS.h"
 
 WeatherStation::WeatherStation() {
 	// TODO Auto-generated constructor stub

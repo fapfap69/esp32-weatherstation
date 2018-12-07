@@ -8,7 +8,22 @@ RM := rm -rf
 
 # All of the sources participating in the build are defined here
 -include sources.mk
--include main/lib/subdir.mk
+-include main/ulp/subdir.mk
+-include main/components/sntp/subdir.mk
+-include main/components/mQttClient/subdir.mk
+-include main/components/i2c/subdir.mk
+-include main/components/counter/subdir.mk
+-include main/components/WiFi/subdir.mk
+-include main/components/UpdateFirmware/subdir.mk
+-include main/components/SSD1306/subdir.mk
+-include main/components/NVS/subdir.mk
+-include main/components/MLX90393/subdir.mk
+-include main/components/GeneralUtils/subdir.mk
+-include main/components/DHThumidity/subdir.mk
+-include main/components/Blinker/subdir.mk
+-include main/components/Barometer/subdir.mk
+-include main/components/Adafruit_GFX/fontconvert/subdir.mk
+-include main/components/Adafruit_GFX/subdir.mk
 -include main/subdir.mk
 -include build/xtensa-debug-module/subdir.mk
 -include build/wpa_supplicant/src/wps/subdir.mk
@@ -52,6 +67,15 @@ RM := rm -rf
 -include build/mdns/subdir.mk
 -include build/mbedtls/port/subdir.mk
 -include build/mbedtls/mbedtls/library/subdir.mk
+-include build/main/components/mQttClient/subdir.mk
+-include build/main/components/i2c/subdir.mk
+-include build/main/components/counter/subdir.mk
+-include build/main/components/MLX90393/subdir.mk
+-include build/main/components/DHThumidity/subdir.mk
+-include build/main/components/Blinker/subdir.mk
+-include build/main/components/Barometer/subdir.mk
+-include build/main/components/Adafruit_GFX/subdir.mk
+-include build/main/component/Adafruit_GFX/subdir.mk
 -include build/main/subdir.mk
 -include build/lwip/port/esp32/netif/subdir.mk
 -include build/lwip/port/esp32/freertos/subdir.mk
@@ -193,19 +217,19 @@ endif
 # Add inputs and outputs from these tool invocations to the build variables 
 
 # All Target
-all: eclipsetest
+all: weatherStation1
 
 # Tool invocations
-eclipsetest: $(OBJS) $(USER_OBJS)
+weatherStation1: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: Cross G++ Linker'
-	xtensa-esp32-elf-g++  -o "eclipsetest" $(OBJS) $(USER_OBJS) $(LIBS)
+	xtensa-esp32-elf-g++  -o "weatherStation1" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) $(CC_DEPS)$(C++_DEPS)$(EXECUTABLES)$(OBJS)$(C_UPPER_DEPS)$(CXX_DEPS)$(C_DEPS)$(CPP_DEPS) eclipsetest
+	-$(RM) $(CC_DEPS)$(C++_DEPS)$(EXECUTABLES)$(OBJS)$(C_UPPER_DEPS)$(CXX_DEPS)$(C_DEPS)$(CPP_DEPS) weatherStation1
 	-@echo ' '
 
 .PHONY: all clean dependents

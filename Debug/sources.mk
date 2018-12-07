@@ -135,6 +135,15 @@ build/lwip/port/esp32/freertos \
 build/lwip/port/esp32/netif \
 build/lwip/port/esp32 \
 build/main \
+build/main/component/Adafruit_GFX \
+build/main/components/Adafruit_GFX \
+build/main/components/Barometer \
+build/main/components/Blinker \
+build/main/components/DHThumidity \
+build/main/components/MLX90393 \
+build/main/components/counter \
+build/main/components/i2c \
+build/main/components/mQttClient \
 build/mbedtls/mbedtls/library \
 build/mbedtls/port \
 build/mdns \
@@ -178,5 +187,20 @@ build/wpa_supplicant/src/wpa2/utils \
 build/wpa_supplicant/src/wps \
 build/xtensa-debug-module \
 main \
-main/lib \
+main/components/Adafruit_GFX \
+main/components/Adafruit_GFX/fontconvert \
+main/components/Barometer \
+main/components/Blinker \
+main/components/DHThumidity \
+main/components/GeneralUtils \
+main/components/MLX90393 \
+main/components/NVS \
+main/components/SSD1306 \
+main/components/UpdateFirmware \
+main/components/WiFi \
+main/components/counter \
+main/components/i2c \
+main/components/mQttClient \
+main/components/sntp \
+main/ulp \
 

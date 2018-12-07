@@ -39,6 +39,12 @@
 #define MQTTCL_BROKER_URL		"mqtt://192.168.0.5:1883"
 #define MQTTCL_STATION_NAME	"pippo"
 
+#define OLED_ADDRESS	0x3C
+#define OLED_I2CSDA		PIN_I2C_0_SDA
+#define OLED_I2CSCL		PIN_I2C_0_SCL
+
+
+
 #define PIN_BTN_BOOT	GPIO_NUM_0
 #define PIN_BOARD_LED	GPIO_NUM_2
 

@@ -3,7 +3,7 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := genApplication
+PROJECT_NAME := weatherStation1
 
 include $(IDF_PATH)/make/project.mk
 

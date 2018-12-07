@@ -32,16 +32,17 @@
 
 #include "sdkconfig.h"
 
-#include "lib/mQttClient.h"
-#include "lib/UpdateFirmware.h"
-#include "lib/Blinker.h"
-#include "lib/NVS.h"
-#include "lib/WiFi.h"
-#include "lib/sntp.h"
-#include "lib/counter.h"
-
 #include "appConfig.h"
+#include "lib/Blinker/Blinker.h"
+#include "lib/counter/counter.h"
+#include "lib/mQttClient/mQttClient.h"
+#include "lib/NVS/NVS.h"
+#include "lib/sntp/sntp.h"
+#include "lib/SSD1306/SSD1306.h"
+#include "lib/UpdateFirmware/UpdateFirmware.h"
+#include "lib/WiFi/WiFi.h"
 #include "WeatherStation.h"
+
 
 static const char*TAG = "appLoader";
 
@@ -158,7 +159,10 @@ void app_main()
     char station[MQTTCL_LEN_STATION];
     int	rainGlobalCount;
 
-    printf("Weather Station v1!\n");
+    SSD1306 oled = SSD1306(I2C_NUM_0, OLED_I2CSDA, OLED_I2CSCL);
+    oled.begin(0, OLED_ADDRESS, true);
+    oled.println("Weather Station v1!\n");
+    oled.display();
 
     // Decode the type of running
     int rainPeriodCount = 0;
@@ -175,7 +179,7 @@ void app_main()
     //::esp_bt_controller_disable();
 
     NVS *nvs = NVS::getInstance();
-    nvs->Init();
+    nvs->Init(DATA_PARTITION_NAME, DEVICE_PARTITION_NAME);
     if( nvs->rStr_Dev("wifi_ssd",ssid,WIFI_LEN_SSID) != ESP_OK ) strcpy(ssid,WIFI_SSD);
     if( nvs->rStr_Dev("wifi_password",password,WIFI_LEN_PASSWORD) != ESP_OK ) strcpy(password,WIFI_PASSWORD);
     if( nvs->rStr_Dev("mqtt_broker_uri",broker,MQTTCL_LEN_BROKER) != ESP_OK ) strcpy(broker,MQTTCL_BROKER_URL);
@@ -195,7 +199,7 @@ void app_main()
     wifi->init();
     wifi->connectAP();
 
-    obtain_time(wifi);
+    obtain_time(wifi, WEATERSTATION_TZ);
 
     UpdateFirmware *UpFwr = UpdateFirmware::getInstance();
 
