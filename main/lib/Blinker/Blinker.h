@@ -23,6 +23,17 @@
 #define PATTERN_TICK_MSEC 250
 #define CONFIG_BLINK_GPIO 5
 
+// ---- BLINK SEQUENCES ------------
+#define BKS_ACTIVE_OK	"1100000000000000"
+#define BKS_BOOT		"1100000011000000"
+#define BKS_REBOOT		"1101010101010000"
+#define BKS_ERROR_WIFI	"1111000110000000"
+#define BKS_ERROR_MQTT	"1111000110011000"
+#define BKS_ERROR_I2C	"1111000111100000"
+#define BKS_ERROR_SENS	"1111000101010100"
+#define BKS_ERROR_SYS	"1111000110001110"
+
+
 class Blinker
 {
 public:
@@ -34,6 +45,7 @@ public:
 private:
 	static Blinker* inst_;   // The one, single instance
 	static SemaphoreHandle_t semAction;
+//	static StaticSemaphore_t semBuffer;
 
 	Blinker(); // private constructor
 	Blinker(const Blinker&);

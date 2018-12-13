@@ -13,8 +13,7 @@
 #include "freertos/semphr.h"
 
 #include "../Blinker/Blinker.h"
-
-#include "../WiFi/WiFi.h"
+//#include "../WiFi/WiFi.h"
 
 #define BUFFSIZE 4096
 #define HASH_LEN 32 /* SHA-256 digest length */
@@ -30,7 +29,7 @@
 class UpdateFirmware
 {
 public:
-	static EventGroupHandle_t updateFirmware_EG;
+	static EventGroupHandle_t egUpdateFirmware;
 	static const int UPDFRW_NOW;
 	static const int UPDFRW_DONE;
 	static const int UPDFRW_ERROR;
@@ -53,28 +52,37 @@ private:
 	static esp_partition_t *partBoot;
 
 	static Blinker	*blkLed;
-	static WiFi	*wifi;
+//	static WiFi	*wifi;
 
 	static UpdateFirmware* inst_;   // The one, single instance
 	static SemaphoreHandle_t semAction;
 
+	static bool isGoodForAOTA;
+	static bool isNeedDownload;
+	static bool isGoodForDownload;
+
 public:
 	static UpdateFirmware* getInstance();
 	esp_err_t Update(const char *aServerUri, const char *aServerCertPem);
-	esp_err_t SwitchPartition();
 	void Restart();
 	esp_err_t SwitchToLoader();
+	esp_err_t SwitchToApplication();
+	esp_err_t ResetAfterError();
 
 private:
 	UpdateFirmware(); // private constructor
 	UpdateFirmware(const UpdateFirmware&);
 	UpdateFirmware& operator=(const UpdateFirmware&);
+	esp_err_t SwitchPartition();
 
 private:
-	static void http_cleanup(esp_http_client_handle_t client);
 	void print_sha256 (const uint8_t *image_hash, const char *label);
 	bool checkPartTable();
 	static void download(void *);
+	static esp_err_t setError(esp_err_t errNo, const char *blkPat);
+	static void http_cleanup(esp_http_client_handle_t client);
+	static void executeTheReboot(void *cx);
+	static esp_err_t _http_event_handler(esp_http_client_event_t *evt);
 
 #ifdef LARGE
 	bool checkPartition(esp_partition_t* otaPartition);

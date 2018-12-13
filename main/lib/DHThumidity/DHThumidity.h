@@ -12,6 +12,8 @@ Ver. 0.1
 
 #include <stdint.h>
 
+#include "../Blinker/Blinker.h"
+
 // how many timing transitions we need to keep track of. 2 * number bits + extra
 #define MAXTIMINGS 85
 
@@ -60,6 +62,7 @@ class DHThumidity {
 		uint8_t dataBuffer[6];
 		bool readSensor(void);
 		int getSignalLevel( int usTimeOut, bool state);
+		static Blinker	*blkLed;
 };
 
 #endif

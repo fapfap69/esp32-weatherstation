@@ -51,6 +51,7 @@ public:
 
 	} theStation;
 
+	bool isAquire;
 	const char* rose[16] = {"N","NNE","NE","ENE","E","ESE","SE","SSE",
 							"S","SSO","SO","OSO","O","ONO","NO","NNO"};
 

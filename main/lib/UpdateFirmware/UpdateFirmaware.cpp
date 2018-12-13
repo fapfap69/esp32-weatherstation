@@ -21,18 +21,25 @@
 #include "esp_flash_partitions.h"
 #include "esp_partition.h"
 #include "esp_err.h"
+#include "bootloader_common.h"
+#include "esp_image_format.h"
+
 
 #include "nvs_flash.h"
 
 #include "sdkconfig.h"
 
 #include "../NVS/NVS.h"
+#include "../WiFi/WiFi.h"
+#include "../mQttClient/mQttClient.h"
+#include "../Blinker/Blinker.h"
+
 #include "UpdateFirmware.h"
 
 static const char *TAG = "UpgradeFirmware";
 static char ota_write_data[BUFFSIZE + 1] = { 0 };
 
-EventGroupHandle_t UpdateFirmware::updateFirmware_EG = NULL;
+EventGroupHandle_t UpdateFirmware::egUpdateFirmware = NULL;
 const int UpdateFirmware::UPDFRW_NOW = BIT0;
 const int UpdateFirmware::UPDFRW_DONE = BIT1;
 const int UpdateFirmware::UPDFRW_ERROR = BIT2;
@@ -54,10 +61,13 @@ esp_partition_t *UpdateFirmware::partRunning = NULL;
 esp_partition_t *UpdateFirmware::partBoot = NULL;
 
 Blinker *UpdateFirmware::blkLed = Blinker::getInstance();
-WiFi *UpdateFirmware::wifi = WiFi::getInstance();
+//WiFi *UpdateFirmware::wifi = WiFi::getInstance();
 
 UpdateFirmware *UpdateFirmware::inst_ = NULL;   // The one, single instance
 SemaphoreHandle_t UpdateFirmware::semAction = NULL;
+bool UpdateFirmware::isGoodForAOTA = false;
+bool UpdateFirmware::isNeedDownload = false;
+bool UpdateFirmware::isGoodForDownload = false;
 
 
 UpdateFirmware* UpdateFirmware::getInstance() {
@@ -80,20 +90,27 @@ UpdateFirmware::UpdateFirmware() {
 	updateDone = false;
 
 	update_handle = 0;
-	updateFirmware_EG = xEventGroupCreate();
-	xEventGroupClearBits(updateFirmware_EG, UPDFRW_NOW | UPDFRW_ERROR | UPDFRW_DONE);
+	egUpdateFirmware = xEventGroupCreate();
+	xEventGroupClearBits(egUpdateFirmware, UPDFRW_NOW | UPDFRW_ERROR | UPDFRW_DONE);
 
-	semAction = xSemaphoreCreateBinary();
+	if(!checkPartTable()) {
+		ESP_LOGE(TAG, "Wrong partition table, unable to Update firmware. Abort!");
+		setError(ESP_ERR_OTA_PARTITION_CONFLICT, BKS_ERROR_SYS);
+	}
+
+	semAction = xSemaphoreCreateMutex();
     if( semAction == NULL ) {
-    	// ----
+		ESP_LOGE(TAG, "Error to create semaphore !");
     }
 
 }
 
 void UpdateFirmware::http_cleanup(esp_http_client_handle_t client)
 {
-    esp_http_client_close(client);
-    esp_http_client_cleanup(client);
+	if(client != NULL) {
+		esp_http_client_close(client);
+		esp_http_client_cleanup(client);
+	}
     return;
 }
 
@@ -111,86 +128,95 @@ void UpdateFirmware::print_sha256 (const uint8_t *image_hash, const char *label)
 bool UpdateFirmware::checkPartTable()
 {
 	uint8_t sha256part[HASH_LEN] = { 0 };
-	esp_partition_t *partPointer;
+	esp_err_t err;
 
-	partPointer = (esp_partition_t*)esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_FACTORY, LOADER_PART_NAME);
-	if(partPointer != NULL) {
-		if(esp_partition_get_sha256(partPointer, sha256part) != ESP_OK) {
+	isGoodForAOTA = false;
+	partLoader = (esp_partition_t*)esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_FACTORY, LOADER_PART_NAME);
+	if(partLoader == NULL) {
+		ESP_LOGE(TAG, "AOTA LOADER partition not recognized. Abort !");
+		blkLed->SetPat(BKS_ERROR_SYS);
+		return(false);
+	} else {
+		err = esp_partition_get_sha256(partLoader, sha256part);
+		switch(err) {
+		case ESP_ERR_IMAGE_INVALID:
+			ESP_LOGE(TAG, "Loader Partition doesn't have a valid image !");
+			return(false);
+		case ESP_ERR_INVALID_ARG:
 			ESP_LOGW(TAG, "Loader Partition doesn't have SHA256 info !");
-		} else {
+			break;
+		case ESP_OK:
 			print_sha256(sha256part, "SHA-256 for the Loader partition table: ");
 			strncpy((char *)sha256loader, (const char*)sha256part, HASH_LEN);
+			break;
+		default:
+			ESP_LOGE(TAG, "Error to get SHA256 info !");
+			return(false);
 		}
-		partLoader = partPointer;
-	} else {
-		ESP_LOGE(TAG, "AOTA LOADER partition not recognized. Abort !");
-		blkLed->SetPat("1000100010001000");
-		return(false);
+		isGoodForAOTA = true;
 	}
-	partPointer = (esp_partition_t*)esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, APPLICATION_PART_NAME);
-	if(partPointer != NULL) {
-		if(esp_partition_get_sha256(partPointer, sha256part) != ESP_OK) {
+	partApplication = (esp_partition_t*)esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, APPLICATION_PART_NAME);
+	if(partApplication == NULL) {
+		ESP_LOGE(TAG, "AOTA APPLICATION partition not recognized. Abort !");
+		blkLed->SetPat(BKS_ERROR_SYS);
+		isGoodForAOTA = false;
+		return(false);
+	} else {
+		isNeedDownload = false;
+		err = esp_partition_get_sha256(partApplication, sha256part);
+		switch(err) {
+		case ESP_ERR_IMAGE_INVALID:
+			ESP_LOGW(TAG, "Application Partition doesn't have a valid image !");
+			isNeedDownload = true;
+			break;
+		case ESP_ERR_INVALID_ARG:
 			ESP_LOGW(TAG, "Application Partition doesn't have SHA256 info !");
-		} else {
+			break;
+		case ESP_OK:
 			print_sha256(sha256part, "SHA-256 for the Application partition table: ");
 			strncpy((char *)sha256application, (const char*)sha256part, HASH_LEN);
+			break;
+		default:
+			ESP_LOGW(TAG, "Error to get SHA256 info !");
+			isNeedDownload = true;
+			break;
 		}
-		partApplication = partPointer;
-	} else {
-		ESP_LOGE(TAG, "AOTA APPLICATION partition not recognized. Abort !");
-		blkLed->SetPat("1000100010001000");
-		return(false);
-	}
-	partPointer = (esp_partition_t*)esp_ota_get_running_partition();
-	if(partPointer == NULL) {
-		ESP_LOGE(TAG, "AOTA  running partition not recognized. Abort !");
-		blkLed->SetPat("1000100010001000");
-		return(false);
-	} else {
-		partRunning = partPointer;
-	}
-	partPointer = (esp_partition_t*)esp_ota_get_boot_partition();
-	if(partPointer == NULL) {
-		ESP_LOGE(TAG, "AOTA  boot partition not recognized. Abort !");
-		blkLed->SetPat("1000100010001000");
-		return(false);
-	} else {
-		partBoot = partPointer;
 	}
 
-    // Initialize NVS.
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-    	// OTA app partition table has a smaller NVS partition size than the non-OTA
-	    // partition table. This size mismatch may cause NVS initialization to fail.
-	    // If this happens, we erase NVS partition and initialize NVS again.
-	    if (nvs_flash_erase() != ESP_OK) {
-	    	ESP_LOGW(TAG, "Error to erase NVS. Abort OTA Update !");
-			blkLed->SetPat("1000100010001000");
-	    	return(false);
-    	}
-	    if(nvs_flash_init() != ESP_OK) {
-	    	ESP_LOGW(TAG, "Error to init NVS. Abort OTA Update !");
-			blkLed->SetPat("1000100010001000");
-	    	return(false);
-	    }
-    }
+	partRunning = (esp_partition_t*)esp_ota_get_running_partition();
+	if(partRunning == NULL) {
+		ESP_LOGE(TAG, "AOTA  running partition not recognized. Abort !");
+		blkLed->SetPat(BKS_ERROR_SYS);
+		isGoodForAOTA = false;
+	}
+	partBoot = (esp_partition_t*)esp_ota_get_boot_partition();
+	if(partBoot == NULL) {
+		ESP_LOGE(TAG, "AOTA  boot partition not recognized. Abort !");
+		blkLed->SetPat(BKS_ERROR_SYS);
+		isGoodForAOTA = false;
+	}
+
+	if(partRunning == partLoader) {
+		isGoodForDownload = true;
+	}
+	if(partRunning == partApplication) {
+		isGoodForDownload = false;
+	}
     return(true);
 }
 
 esp_err_t UpdateFirmware::Update(const char *aServerUri, const char *aServerCertPem)
 {
+	//char uri[256];
+	//char cer[1024];
+
     esp_err_t err;
-    /* update handle : set by esp_ota_begin(), must be freed via esp_ota_end() */
-    esp_partition_t *update_partition = NULL;
+    if(!isGoodForAOTA || !isGoodForDownload) {
+        ESP_LOGW(TAG, "Reject the AOTA update ! %d %d ",isGoodForAOTA, isGoodForDownload);
+        return(setError(ESP_ERR_OTA_PARTITION_CONFLICT, BKS_ERROR_SYS));
+    }
+
 	blkLed->SetPat("1100000000000000");
-
-	if(!checkPartTable()) {
-		ESP_LOGE(TAG, "Wrong partition table, unable to Update firmware. Abort!");
-		xEventGroupSetBits(updateFirmware_EG, UPDFRW_ERROR);
-		return(ESP_ERR_OTA_PARTITION_CONFLICT);
-	}
-
 
     ESP_LOGD(TAG, "Starting Application Update... ");
     updateStart = true;
@@ -201,72 +227,74 @@ esp_err_t UpdateFirmware::Update(const char *aServerUri, const char *aServerCert
         vTaskDelay(250 / portTICK_PERIOD_MS);
         if(--wifiTimeOut == 0) {
         	ESP_LOGE(TAG,"Error connecting the Wifi. Abort!");
-        	return(ESP_ERR_WIFI_NOT_CONNECT);
+    		return(setError(ESP_ERR_WIFI_NOT_CONNECT, BKS_ERROR_WIFI));
         }
     }
-    ESP_LOGI(TAG, "Connect to Wifi ! Start to Connect to Server....");
-
+    ESP_LOGI(TAG, "Connect to Wifi ! Start to Connect to Server:%s",aServerUri);
+    if(aServerCertPem == NULL) {
+        ESP_LOGE(TAG, "PEM server ertificate ERRROR");
+        return(setError(ESP_ERR_WIFI_NOT_CONNECT, BKS_ERROR_WIFI));
+    }
     esp_http_client_config_t config;
-    strcpy( (char *)config.url , aServerUri);
-    strcpy( (char *)config.cert_pem, aServerCertPem);
+    memset(&config,0,sizeof(esp_http_client_config_t));
+    //strcpy(uri,aServerUri);
+   // strcpy(cer,aServerCertPem);
+    config.url = aServerUri;
+    config.cert_pem = aServerCertPem;
+    config.event_handler = UpdateFirmware::_http_event_handler;
 
     client = esp_http_client_init(&config);
     if (client == NULL) {
         ESP_LOGE(TAG, "Failed to initialise HTTP connection");
-		xEventGroupSetBits(updateFirmware_EG, UPDFRW_ERROR);
-        return(ESP_ERR_HTTP_CONNECT);
+		return(setError(ESP_ERR_HTTP_CONNECT, BKS_ERROR_WIFI));
     }
+
     err = esp_http_client_open(client, 0);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
-        esp_http_client_cleanup(client);
-		xEventGroupSetBits(updateFirmware_EG, UPDFRW_ERROR);
-        return(ESP_ERR_HTTP_CONNECTING);
+		return(setError(ESP_ERR_HTTP_CONNECTING, BKS_ERROR_WIFI));
     }
-    esp_http_client_fetch_headers(client);
 
-    update_partition = (esp_partition_t*)esp_ota_get_next_update_partition(NULL);
-    if( update_partition == NULL) {
-        ESP_LOGE(TAG, "Failed to get a valide OTA partition . Abort !");
-        http_cleanup(client);
-		xEventGroupSetBits(updateFirmware_EG, UPDFRW_ERROR);
-        return(ESP_ERR_OTA_PARTITION_CONFLICT);
+    int fetchResponse = esp_http_client_fetch_headers(client);
+    if( fetchResponse == ESP_FAIL) {
+    	ESP_LOGE(TAG, "Failed to get data from http client: %s", esp_err_to_name(err));
+		return(setError(ESP_ERR_HTTP_CONNECTING, BKS_ERROR_WIFI));
     }
-    ESP_LOGI(TAG, "Writing to partition subtype %d at offset 0x%x", update_partition->subtype, update_partition->address);
-
-    err = esp_ota_begin((const esp_partition_t*)update_partition, OTA_SIZE_UNKNOWN, &update_handle);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_ota_begin failed (%s)", esp_err_to_name(err));
-        http_cleanup(client);
-		xEventGroupSetBits(updateFirmware_EG, UPDFRW_ERROR);
-        return(ESP_ERR_OTA_SELECT_INFO_INVALID);
+    else if (fetchResponse == 0) {
+    	ESP_LOGE(TAG, "Get data from http client returns 0 bytes !");
+		return(setError(ESP_ERR_HTTP_CONNECTING, BKS_ERROR_WIFI));
     }
-    ESP_LOGI(TAG, "esp_ota_begin succeeded");
-
+	ESP_LOGW(TAG, "Start the download ...");
+    partToUpdate = partApplication; // update_partition
     xTaskCreate(&UpdateFirmware::download,"Download Firmware" , 8192, NULL, 5, NULL);
-
-    partToUpdate = update_partition;
     return(ESP_OK);
 }
 
 void UpdateFirmware::download(void *ptrPar)
 {
+	esp_err_t err;
+    err = esp_ota_begin((const esp_partition_t*)partToUpdate, OTA_SIZE_UNKNOWN, &update_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_begin failed (%s)", esp_err_to_name(err));
+       	setError(err, BKS_ERROR_SYS);
+        return;
+    }
+    ESP_LOGI(TAG, "esp_ota_begin succeeded");
+
     bytesDownloaded = 0;
-	xEventGroupSetBits(updateFirmware_EG, UPDFRW_NOW);
+	xEventGroupSetBits(egUpdateFirmware, UPDFRW_NOW);
 	blkLed->SetPat("1111000000000000");
-    /*deal with all receive packet*/
     while (1) {
         int data_read = esp_http_client_read(client, ota_write_data, BUFFSIZE);
         if (data_read < 0) {
             ESP_LOGE(TAG, "Error: SSL data read error");
-            http_cleanup(client);
-    		xEventGroupSetBits(updateFirmware_EG, UPDFRW_ERROR);
-    		lastErrCode = ESP_ERR_HTTP_INVALID_TRANSPORT;
+           	setError(ESP_ERR_HTTP_INVALID_TRANSPORT, BKS_ERROR_WIFI);
             return;
         } else if (data_read > 0) {
-        	lastErrCode = esp_ota_write( update_handle, (const void *)ota_write_data, data_read);
-            if (lastErrCode != ESP_OK) {
-                http_cleanup(client);
+        	err = esp_ota_write( update_handle, (const void *)ota_write_data, data_read);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "OTA Write error ! (%s)",  esp_err_to_name(err));
+               	setError(ESP_ERR_HTTP_INVALID_TRANSPORT, BKS_ERROR_WIFI);
                 return;
             }
             bytesDownloaded += data_read;
@@ -275,17 +303,18 @@ void UpdateFirmware::download(void *ptrPar)
             ESP_LOGI(TAG, "Connection closed,all data received");
             break;
         }
+        vTaskDelay(10); // just to feed the watchdog
     }
 	blkLed->SetPat("1111111100000000");
     ESP_LOGI(TAG, "Total Write binary data length : %lu", bytesDownloaded);
-    lastErrCode = esp_ota_end(update_handle);
-    if(lastErrCode != ESP_OK) {
-        ESP_LOGE(TAG, "esp_ota_end failed!");
-        http_cleanup(client);
-		xEventGroupSetBits(updateFirmware_EG, UPDFRW_ERROR);
+    err = esp_ota_end(update_handle);
+    if(err != ESP_OK) {
+    	ESP_LOGE(TAG, "OTA end failed! %s",esp_err_to_name(err));
+    	setError(err, BKS_ERROR_SYS);
 		return;
     }
-	xEventGroupSetBits(updateFirmware_EG, UPDFRW_DONE);
+    update_handle = 0;
+	xEventGroupSetBits(egUpdateFirmware, UPDFRW_DONE);
     updateStart = false;
     updateDone = true;
     return;
@@ -295,35 +324,122 @@ void UpdateFirmware::download(void *ptrPar)
 esp_err_t UpdateFirmware::SwitchPartition()
 {
 	esp_err_t err;
-	blkLed->SetPat("10101010");
-	if(partToUpdate != NULL) {
+	if(partToUpdate != NULL && ((partToUpdate == partLoader) || (partToUpdate == partApplication && !isNeedDownload)) ) {
 		err = esp_ota_set_boot_partition(partToUpdate);
 		if (err != ESP_OK) {
 			ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (%s)!", esp_err_to_name(err));
-			return(err);
+			return(setError(err, BKS_ERROR_SYS));
 		}
 		return(ESP_OK);
 	} else {
 		ESP_LOGE(TAG, "Undefined partition !");
-		return(ESP_ERR_INVALID_ARG);
+		return(setError(ESP_ERR_INVALID_ARG, BKS_ERROR_SYS) );
 	}
 }
 
 void UpdateFirmware::Restart()
 {
-	ESP_LOGI(TAG, "Prepare to restart system!");
-	blkLed->SetPat("1111000011100010");
-	printf("Restarting now.\n");
-	fflush(stdout);
-	esp_restart();
+	ESP_LOGI(TAG, "Prepare to restart system...");
+	xTaskCreate(&UpdateFirmware::executeTheReboot, "reboot", 8192, NULL, tskIDLE_PRIORITY, NULL);
+	return;
 }
 
+void UpdateFirmware::executeTheReboot(void *cx)
+{
+	blkLed->SetPat(BKS_REBOOT);
+	mQttClient 	  *mQtt = mQttClient::getInstance();
+	mQtt->Stop();
+	http_cleanup(client);
+	WiFi  *wifi = WiFi::getInstance();
+	wifi->Sleep();
+	NVS *nvs = NVS::getInstance();
+	nvs->Close();
+	ESP_LOGI(TAG, "Reboot now !");
+	fflush(stdout);
+	blkLed->StopBlink();
+	esp_restart();
+	return;
+}
 esp_err_t UpdateFirmware::SwitchToLoader()
 {
-	blkLed->SetPat("10101010");
-	partToUpdate = (esp_partition_t*)esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_FACTORY, NULL);
-	return(SwitchPartition());
+	if(isGoodForAOTA) {
+		partToUpdate = (esp_partition_t*)esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_FACTORY, NULL);
+		return(SwitchPartition());
+	}
+	return(ESP_ERR_OTA_PARTITION_CONFLICT);
 }
+
+esp_err_t UpdateFirmware::SwitchToApplication()
+{
+	if(isGoodForAOTA) {
+		partToUpdate = (esp_partition_t*)esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
+		return(SwitchPartition());
+	}
+	return(ESP_ERR_OTA_PARTITION_CONFLICT);
+}
+esp_err_t UpdateFirmware::ResetAfterError()
+{
+	partToUpdate = NULL;
+	updateStart = false;
+	updateDone = false;
+
+	http_cleanup(client);
+	xEventGroupClearBits(egUpdateFirmware, UPDFRW_NOW | UPDFRW_ERROR | UPDFRW_DONE);
+
+	lastErrCode = ESP_OK;
+
+	if(update_handle != 0) {
+		lastErrCode = esp_ota_end(update_handle);
+		if(lastErrCode != ESP_OK) {
+			ESP_LOGE(TAG, "esp_ota_end failed!");
+			blkLed->SetPat(BKS_ERROR_SYS);
+		}
+	}
+	return lastErrCode;
+}
+
+esp_err_t UpdateFirmware::setError(esp_err_t errNo, const char *blkPat)
+{
+    http_cleanup(client);
+	xEventGroupSetBits(egUpdateFirmware, UPDFRW_ERROR);
+	lastErrCode = errNo;
+	blkLed->SetPat(blkPat);
+	return( errNo );
+}
+
+esp_err_t UpdateFirmware::_http_event_handler(esp_http_client_event_t *evt)
+{
+    switch(evt->event_id) {
+        case HTTP_EVENT_ERROR:
+            ESP_LOGD(TAG, "HTTP_EVENT_ERROR");
+            break;
+        case HTTP_EVENT_ON_CONNECTED:
+            ESP_LOGD(TAG, "HTTP_EVENT_ON_CONNECTED");
+            break;
+        case HTTP_EVENT_HEADER_SENT:
+            ESP_LOGD(TAG, "HTTP_EVENT_HEADER_SENT");
+            break;
+        case HTTP_EVENT_ON_HEADER:
+            ESP_LOGD(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
+            break;
+        case HTTP_EVENT_ON_DATA:
+            ESP_LOGD(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
+            if (!esp_http_client_is_chunked_response(evt->client)) {
+                // Write out data
+                // printf("%.*s", evt->data_len, (char*)evt->data);
+            }
+
+            break;
+        case HTTP_EVENT_ON_FINISH:
+            ESP_LOGD(TAG, "HTTP_EVENT_ON_FINISH");
+            break;
+        case HTTP_EVENT_DISCONNECTED:
+            ESP_LOGD(TAG, "HTTP_EVENT_DISCONNECTED");
+            break;
+    }
+    return ESP_OK;
+}
+
 
 #ifdef LARGE
 bool UpdateFirmware::checkPartition(esp_partition_t* otaPartition)

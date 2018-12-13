@@ -60,9 +60,9 @@ WiFi::WiFi()
 {
 	wifiEG = xEventGroupCreate();
 	xEventGroupClearBits(wifiEG, WIFICONNECTED | WIFIRUNNING);
-	semAction = xSemaphoreCreateBinary();
+	semAction = xSemaphoreCreateMutex();
 	if( semAction == NULL ) {
-		// ----
+		ESP_LOGE(TAG, "Error to create semaphore !");
 	}
 } // WiFi
 
@@ -88,6 +88,7 @@ esp_err_t WiFi::connectAP(const std::string& ssid, const std::string& password, 
 	m_passwd = password;
 	m_mode = mode;
 	err = init();
+	err = configure();
 	if(err == ESP_OK)
 		err = connectAP();
 	return(err);
@@ -98,15 +99,15 @@ esp_err_t WiFi::connectAP()
 	esp_err_t errRc = 0;
 	if( xSemaphoreTake( semAction, ( TickType_t ) 1000 ) == pdTRUE ) {
 
-		ESP_LOGD(TAG, ">> connectAP");
+		ESP_LOGI(TAG, "Starting driver ...");
 		m_apConnectionStatus = UINT8_MAX;
 
 		errRc = ::esp_wifi_start();
 		if (errRc == ESP_OK) {
-			ESP_LOGD(TAG, "<< connectAP");
+			ESP_LOGD(TAG, " started. wait for connection to AP");
 		} else {
-			ESP_LOGE(TAG, "esp_wifi_start: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
-			blkLed->SetPat("1111000011000000");
+			ESP_LOGE(TAG, "Start driver error : rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
+			blkLed->SetPat(BKS_ERROR_WIFI);
 		}
 		m_apConnectionStatus = errRc;
 		xSemaphoreGive( semAction );
@@ -133,51 +134,21 @@ void WiFi::Sleep()
 
 	err = esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
 
+	ESP_LOGI(TAG, "Stop the WiFi...");
+
 	err = esp_wifi_stop();
 	if(err != ESP_OK) {
-		ESP_LOGE(TAG, "Could not stop WiFi: rc=%d %s", err, GeneralUtils::errorToString(err));
+		ESP_LOGW(TAG, "Could not stop WiFi: rc=%d %s", err, GeneralUtils::errorToString(err));
     }
 	return;
 }
+esp_err_t WiFi::configure() {
+	esp_err_t errRc;
 
-esp_err_t WiFi::init() {
-	esp_err_t errRc = 0;
-
-	if (m_eventLoopStarted) {
-		esp_event_loop_set_cb(WiFi::EventHandler, NULL);   // Returns the old handler.
-	} else {
-		errRc = ::esp_event_loop_init(WiFi::EventHandler, NULL);  // Initialze the event handler.
-		if (errRc != ESP_OK) {
-			ESP_LOGE(TAG, "esp_event_loop_init: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
-			blkLed->SetPat("1010101011000000");
-			return(errRc);
-		}
-		m_eventLoopStarted = true;
-	}
-	// Now, one way or another, the event handler is WiFi::eventHandler.
-
-	if (!m_initCalled) {
-		::tcpip_adapter_init();
-
-		wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-		errRc = ::esp_wifi_init(&cfg);
-		if (errRc != ESP_OK) {
-			ESP_LOGE(TAG, "esp_wifi_init: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
-			blkLed->SetPat("1010101011000000");
-			return(errRc);
-		}
-
-		errRc = ::esp_wifi_set_storage(WIFI_STORAGE_RAM);
-		if (errRc != ESP_OK) {
-			ESP_LOGE(TAG, "esp_wifi_set_storage: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
-			blkLed->SetPat("1010101011000000");
-			return(errRc);
-		}
-	}
 	errRc = ::esp_wifi_set_mode(m_mode);
 	if (errRc != ESP_OK) {
 		ESP_LOGE(TAG, "esp_wifi_set_mode: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
-		blkLed->SetPat("1010101011000000");
+		blkLed->SetPat(BKS_ERROR_WIFI);
 		return(errRc);
 	}
 	wifi_config_t sta_config;
@@ -188,7 +159,8 @@ esp_err_t WiFi::init() {
 	errRc = ::esp_wifi_set_config(WIFI_IF_STA, &sta_config);
 	if (errRc != ESP_OK) {
 		ESP_LOGE(TAG, "esp_wifi_set_config: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
-		blkLed->SetPat("1100110011000000");
+		blkLed->SetPat(BKS_ERROR_WIFI);
+		return(errRc);
 	}
 
 	if (ip.addr != 0 && gw.addr != 0 && netmask.addr != 0) {
@@ -199,7 +171,47 @@ esp_err_t WiFi::init() {
 		ipInfo.netmask.addr = netmask.addr;
 		::tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_STA, &ipInfo);
 	}
+	ESP_LOGI(TAG, "Wifi Configure done ");
+	return(ESP_OK);
+}
 
+
+
+esp_err_t WiFi::init() {
+	esp_err_t errRc = 0;
+
+	if (!m_initCalled) {
+		::tcpip_adapter_init();
+
+		if (m_eventLoopStarted) {
+			esp_event_loop_set_cb(WiFi::EventHandler, NULL);   // Returns the old handler.
+		} else {
+			errRc = ::esp_event_loop_init(WiFi::EventHandler, NULL);  // Initialze the event handler.
+			if (errRc != ESP_OK) {
+				ESP_LOGE(TAG, "esp_event_loop_init: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
+				blkLed->SetPat(BKS_ACTIVE_OK);
+				return(errRc);
+			}
+			m_eventLoopStarted = true;
+		}
+		// Now, one way or another, the event handler is WiFi::eventHandler.
+
+		wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+		errRc = ::esp_wifi_init(&cfg);
+		if (errRc != ESP_OK) {
+			ESP_LOGE(TAG, "esp_wifi_init: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
+			blkLed->SetPat(BKS_ERROR_WIFI);
+			return(errRc);
+		}
+
+		errRc = ::esp_wifi_set_storage(WIFI_STORAGE_RAM);
+		if (errRc != ESP_OK) {
+			ESP_LOGE(TAG, "esp_wifi_set_storage: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
+			blkLed->SetPat(BKS_ERROR_WIFI);
+			return(errRc);
+		}
+	}
+	ESP_LOGI(TAG, "Wifi Init done ");
 	m_initCalled = true;
 	return(ESP_OK);
 } // init
@@ -209,9 +221,23 @@ esp_err_t WiFi::EventHandler(void *ctx, system_event_t *event)
 {
 	esp_err_t err;
 	//WiFi* pWiFi = (WiFi*) ctx;   // retrieve the WiFi object from the passed in context.
+	ip_addr_t dnsip;
 
     switch (event->event_id) {
+
+    case SYSTEM_EVENT_STA_START:
+    	m_apConnectionStatus = UINT8_MAX;
+		ESP_LOGD(TAG, "Start the Wifi: connecting...");
+		err = ::esp_wifi_connect();
+    	if(err != ESP_OK) {
+    		ESP_LOGW(TAG, "Connection error: rc=%d %s", err, GeneralUtils::errorToString(err));
+			blkLed->SetPat(BKS_ERROR_WIFI);
+			return(ESP_ERR_WIFI_NOT_CONNECT);
+		}
+        break;
+
     case SYSTEM_EVENT_STA_CONNECTED:
+		ESP_LOGI(TAG, "Got connection !");
     	xEventGroupSetBits(wifiEG, WIFICONNECTED);
     	break;
 
@@ -220,16 +246,6 @@ esp_err_t WiFi::EventHandler(void *ctx, system_event_t *event)
     	xEventGroupClearBits(wifiEG, WIFIRUNNING | WIFICONNECTED);
     	break;
 
-    case SYSTEM_EVENT_STA_START:
-    	m_apConnectionStatus = UINT8_MAX;
-		ESP_LOGD(TAG, "esp_wifi_connect");
-		err = ::esp_wifi_connect();
-    	if(err != ESP_OK) {
-    		ESP_LOGE(TAG, "esp_wifi_connect: rc=%d %s", err, GeneralUtils::errorToString(err));
-			blkLed->SetPat("1111000011001100");
-			return(ESP_ERR_WIFI_NOT_CONNECT);
-		}
-        break;
 
     case SYSTEM_EVENT_STA_GOT_IP:
     	tcpip_adapter_ip_info_t ipInfo;
@@ -237,9 +253,13 @@ esp_err_t WiFi::EventHandler(void *ctx, system_event_t *event)
   		ip.addr = ipInfo.ip.addr;
   		gw.addr = ipInfo.gw.addr;
   		netmask.addr = ipInfo.netmask.addr;
+  		tcpip_adapter_dns_info_t dns;
+  		::tcpip_adapter_get_dns_info(TCPIP_ADAPTER_IF_STA, TCPIP_ADAPTER_DNS_MAIN, &dns);
+  		dnsip = dns.ip;
+  		ESP_LOGI(TAG, "DNS SERVER  %d.%d.%d.%d\n" , ((uint8_t*) (&dnsip))[0], ((uint8_t*) (&dnsip))[1], ((uint8_t*) (&dnsip))[2], ((uint8_t*) (&dnsip))[3]);
         xEventGroupSetBits(wifiEG, WIFIRUNNING);
         m_apConnectionStatus = ESP_OK;
-		blkLed->SetPat("1100000000000000");
+		blkLed->SetPat(BKS_ACTIVE_OK);
         break;
 
     case SYSTEM_EVENT_STA_LOST_IP:
@@ -255,11 +275,13 @@ esp_err_t WiFi::EventHandler(void *ctx, system_event_t *event)
     	xEventGroupClearBits(wifiEG, WIFICONNECTED);
 		err = ::esp_wifi_connect();
     	if(err != ESP_OK) {
-    		ESP_LOGE(TAG, "esp_wifi_connect: rc=%d %s", err, GeneralUtils::errorToString(err));
-			blkLed->SetPat("1111000011001100");
-			return(err);
+    		ESP_LOGW(TAG, "Auto connection error: rc=%d %s", err, GeneralUtils::errorToString(err));
+			blkLed->SetPat(BKS_ERROR_WIFI);
+			return(m_apConnectionStatus);
 		}
+        m_apConnectionStatus = ESP_OK;
         break;
+
     default:
         break;
     }

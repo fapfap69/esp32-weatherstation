@@ -24,7 +24,7 @@ Ver. 0.1
 
 
 static const char* TAG = "DHT";
-
+Blinker *DHThumidity::blkLed = Blinker::getInstance();
 // class constructor
 DHThumidity::DHThumidity() {
 
@@ -211,11 +211,13 @@ bool DHThumidity::readSensor()
 	gpio_set_direction( sensor.PinNumber, GPIO_MODE_INPUT );		// change to input mode
 	uSec = getSignalLevel( 85, 0 );
 	if( uSec<0 ) {
+		blkLed->SetPat(BKS_ERROR_SENS);
 		errorCode = DHT_TIMEOUT_ERROR;
 		return false;
 	}
 	uSec = getSignalLevel( 85, 1 );
 	if( uSec<0 ) {
+		blkLed->SetPat(BKS_ERROR_SENS);
 		errorCode = DHT_TIMEOUT_ERROR;
 		return false;
 	}
@@ -224,11 +226,13 @@ bool DHThumidity::readSensor()
 	for( int k = 0; k < 40; k++ ) {
 		uSec = getSignalLevel( 56, 0 ); // -- starts new data transmission with >50us low signal
 		if( uSec<0 ) {
+			blkLed->SetPat(BKS_ERROR_SENS);
 			errorCode = DHT_TIMEOUT_ERROR;
 			return false;
 		}
 		uSec = getSignalLevel( 75, 1 ); // -- check to see if after >70us rx data is a 0 or a 1
 		if( uSec<0 ) {
+			blkLed->SetPat(BKS_ERROR_SENS);
 			errorCode = DHT_TIMEOUT_ERROR;
 			return false;
 		}
@@ -245,14 +249,15 @@ bool DHThumidity::readSensor()
 		time(&lastReadTime);
 		return true;
 	} else {
-			errorCode = DHT_CHECKSUM_ERROR;
-			return false;
+		blkLed->SetPat(BKS_ERROR_SENS);
+		errorCode = DHT_CHECKSUM_ERROR;
+		return false;
 	}
 
 	// Switch Off
 	gpio_set_direction( sensor.PinNumber, GPIO_MODE_OUTPUT );
 	gpio_set_level( sensor.PinNumber, 0 ); // pull down for 3 ms for a smooth and nice wake up
 
-
+	blkLed->SetPat(BKS_ERROR_SENS);
 	return DHT_CHECKSUM_ERROR;
 }

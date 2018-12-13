@@ -35,6 +35,8 @@
 #include "lib/MLX90393/MLX90393.h"
 #include "lib/NVS/NVS.h"
 
+#include "station.h"
+
 WeatherStation::WeatherStation() {
 	// TODO Auto-generated constructor stub
 
@@ -46,18 +48,18 @@ WeatherStation::~WeatherStation() {
 
 bool WeatherStation::initStation()
 {
+	isAquire = false;
 	tempIsCelsius = TEMPERATURE_IS_CELSIUS;
 
-	theStation.Windgauge = new CounterUp(PIN_DIG_2);
+	theStation.Windgauge = new CounterUp(WINDGAUGE_PULSE_PIN);
 	theStation.Windgauge->setEdge(true);
 	theStation.Windgauge->setFilter(true, 3000);
 	theStation.Windgauge->pause();
 
 	theStation.Termogauge = new DHThumidity();
 
-	theStation.i2c = new I2Cmaster(I2C_NUM_1, PIN_I2C_1_SDA, PIN_I2C_1_SCL);
+	theStation.i2c = new I2Cmaster(SENSOR_I2CDEV, PIN_I2C_1_SDA, PIN_I2C_1_SCL);
 	theStation.Barometergauge = new Barometer(theStation.i2c);
-
 	theStation.Directiongauge = new MLX90393(theStation.i2c);
 
 	return false;
@@ -67,6 +69,7 @@ void WeatherStation::everyTenMinutesTask(void *cx)
 {
 	WeatherStation *ws = (WeatherStation *)cx;
 
+	ws->isAquire = true;
 	// SetUp the counter foer WindSpeed
 	time_t startWindAquire;
 	startWindAquire = time (NULL);
@@ -74,7 +77,7 @@ void WeatherStation::everyTenMinutesTask(void *cx)
 	ws->theStation.Windgauge->resume(); // start counting
 
 	// Read the Humidity & Temperature
-	ws->theStation.Termogauge->PowerOn(PIN_DIG_3,DHT22);
+	ws->theStation.Termogauge->PowerOn(TEMPHUMIDITY_PIN,DHT22);
 	ws->theStation.Termogauge->readHumidity();
 
 	ws->MeteoValues.Humidity = ws->theStation.Termogauge->getHumidity();
@@ -97,6 +100,7 @@ void WeatherStation::everyTenMinutesTask(void *cx)
 
 	MLX90393::txyzRaw magField;
 	float angle;
+	// We can make more then one measurament ?
 	ws->theStation.Directiongauge->readRawData(magField);
 	angle = atan2(magField.y,magField.x) * 180.0 / M_PI;
 	if(angle < 0) angle += 360.0;
@@ -125,6 +129,8 @@ void WeatherStation::everyTenMinutesTask(void *cx)
     strftime (ws->MeteoValues.TimeStamp,60,"%c",timeinfo);
 
     ws->pubValues();
+
+    ws->isAquire = false;
 	return;
 }
 
@@ -136,12 +142,21 @@ bool WeatherStation::setPubClient(mQttClient *aMqttClient)
 
 bool WeatherStation::pubValues()
 {
+	char buf[512];
+	NVS *nvs = NVS::getInstance();
+
     mQtt->Publication("/App/Name", APPLICATIONNAME,0);
     mQtt->Publication("/App/Version",VERSION,0);
-    mQtt->Publication("/Station/Name",WEATERSTATION_NAME,0);
-    mQtt->Publication("/Station/Altitude",WEATERSTATION_ALTITUDE_S,0);
-    mQtt->Publication("/Station/Latitude",WEATERSTATION_LATITUDE_S,0);
+
+    if( nvs->rStr_Dev("station_name",buf,512) != ESP_OK ) strcpy(buf,WEATERSTATION_NAME);
+    mQtt->Publication("/Station/Name",buf,0);
+    if( nvs->rStr_Dev("station_long_s",buf,512) != ESP_OK ) strcpy(buf,WEATERSTATION_LONGITUDE_S);
     mQtt->Publication("/Station/Longitude",WEATERSTATION_LONGITUDE_S,0);
+    if( nvs->rStr_Dev("station_lat_s",buf,512) != ESP_OK ) strcpy(buf,WEATERSTATION_LATITUDE_S);
+    mQtt->Publication("/Station/Latitude",WEATERSTATION_LATITUDE_S,0);
+    if( nvs->rStr_Dev("station_alt_s",buf,512) != ESP_OK ) strcpy(buf,WEATERSTATION_ALTITUDE_S);
+    mQtt->Publication("/Station/Altitude",WEATERSTATION_ALTITUDE_S,0);
+
     mQtt->Publication("/Meteo/Time",MeteoValues.TimeStamp,0);
     mQtt->Publication("/Meteo/Temperature", MeteoValues.Temperature);
     mQtt->Publication("/Meteo/Pressure", MeteoValues.Pressure);

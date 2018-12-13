@@ -12,6 +12,8 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
+
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 #include "rom/gpio.h"
@@ -28,27 +30,30 @@ SemaphoreHandle_t Blinker::semAction = NULL;
 
 Blinker* Blinker::getInstance() {
    if (inst_ == NULL) {
-      inst_ = new Blinker();
+	   printf("Create blinker !\n");
+       inst_ = new Blinker();
    }
    return(inst_);
 }
 
 Blinker::Blinker()
 {
-	gpioNum = (gpio_num_t)BLINK_GPIO;
-	SetPat("OO..OO..OO..OO..");
-	xHandle = NULL;
-	semAction = xSemaphoreCreateBinary();
+	semAction = xSemaphoreCreateMutex();
     if( semAction == NULL ) {
-    	// ----
+    	 printf("ERROR create the semaphore!\n");
+    } else {
+    	gpioNum = (gpio_num_t)BLINK_GPIO;
+    	SetPat("OO..OO..OO..OO..");
+    	xHandle = NULL;
     }
-
 }
 
 void Blinker::SetPat(const char *blinkPat)
 {
 	const char *ptr = blinkPat;
 	char *dPtr = BlinkPattern;
+	if(semAction == NULL) return;
+
 	if( xSemaphoreTake( semAction, ( TickType_t ) 10 ) == pdTRUE ) {
 		while((ptr - blinkPat) < MAX_NUM_OF_PATTERN_CHAR && *ptr != '\0') {
 			*dPtr = *ptr;
@@ -83,6 +88,8 @@ void Blinker::blink( void * pvParameters )
 {
 	uint8_t ind = 0;
     while(1) {
+    	if(xSemaphoreTake( semAction, ( TickType_t ) 10 ) == pdTRUE ) {
+
     	switch (BlinkPattern[ind++]) {
     	case 'O':
     	case '1':
@@ -94,6 +101,8 @@ void Blinker::blink( void * pvParameters )
     	case 'F':
     		gpio_set_level(gpioNum, 1);
     		break;
+    	}
+    	xSemaphoreGive( semAction );
     	}
         vTaskDelay(PATTERN_TICK_MSEC / portTICK_PERIOD_MS);
         if(ind>=MAX_NUM_OF_PATTERN_CHAR || BlinkPattern[ind] == '\0') ind = 0;

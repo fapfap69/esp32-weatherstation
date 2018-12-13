@@ -18,7 +18,7 @@
 nvs_handle NVS::generalNVS = 0;
 nvs_handle NVS::perdeviceNVS = 0;
 const char *NVS::TAG = "NVS";
-Blinker *NVS::blkLed = Blinker::getInstance();
+Blinker *NVS::blkLed = NULL;
 
 NVS* NVS::inst_ = NULL;   // The one, single instance
 SemaphoreHandle_t NVS::semAction = NULL;
@@ -39,8 +39,13 @@ NVS::NVS()
 
 bool NVS::Init(const char* parData, const char* parDevice)
 {
+	blkLed = Blinker::getInstance();
+
 	strncpy(namePartData, parData, 64);
+	ESP_LOGD(TAG, "NVS partition Data Name %s ", namePartData);
 	strncpy(namePartDevice, parDevice, 64);
+	ESP_LOGD(TAG, "NVS partition Device Name %s ", namePartDevice);
+
 	// Initialize NVS.
 	esp_err_t err = nvs_flash_init();
 	if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -48,13 +53,13 @@ bool NVS::Init(const char* parData, const char* parDevice)
 		// partition table. This size mismatch may cause NVS initialization to fail.
 		// If this happens, we erase NVS partition and initialize NVS again.
 		if (nvs_flash_erase() != ESP_OK) {
-		 	ESP_LOGW(TAG, "Error to erase NVS. Abort OTA Update !");
-		 	blkLed->SetPat("11001100");
+		 	ESP_LOGW(TAG, "Error to erase NVS. Abort !");
+		 	blkLed->SetPat(BKS_ERROR_SYS);
 		  	return(false);
 	    }
 		if(nvs_flash_init() != ESP_OK) {
-		  	ESP_LOGW(TAG, "Error to init NVS. Abort OTA Update !");
-		 	blkLed->SetPat("11001100");
+		  	ESP_LOGW(TAG, "Error to init NVS. Abort  !");
+		 	blkLed->SetPat(BKS_ERROR_SYS);
 		   	return(false);
 		}
 	}
@@ -62,21 +67,37 @@ bool NVS::Init(const char* parData, const char* parDevice)
 	if (err != ESP_OK) {
 		ESP_LOGW(TAG, "Error (%s) opening NVS handle!", esp_err_to_name(err));
 		generalNVS = 0;
-	 	blkLed->SetPat("11001100");
+	 	blkLed->SetPat(BKS_ERROR_SYS);
 		return(false);
 	}
-	err = nvs_open(namePartDevice, NVS_READWRITE, &perdeviceNVS);
+
+	err = nvs_flash_init_partition(namePartDevice);
+	if (err != ESP_OK) {
+		ESP_LOGW(TAG, "Error to init Device partition (%s) !", esp_err_to_name(err));
+		perdeviceNVS = 0;
+		blkLed->SetPat(BKS_ERROR_SYS);
+		return(false);
+	}
+	err = nvs_open_from_partition(namePartDevice, "Station", NVS_READWRITE, &perdeviceNVS);
 	if (err != ESP_OK) {
 		ESP_LOGW(TAG, "Error (%s) opening DEVICE NVS handle!", esp_err_to_name(err));
 		perdeviceNVS = 0;
-	 	blkLed->SetPat("11001100");
+	 	blkLed->SetPat(BKS_ERROR_SYS);
 		return(false);
 	}
+
+	semAction = xSemaphoreCreateMutex();
+    if( semAction == NULL ) {
+    	ESP_LOGE(TAG, "Error create the semaphore!");
+    	printf("ERROR create the semaphore!\n");
+    	return(false);
+    }
 	return(true);
 }
 
 void NVS::Close()
 {
+	ESP_LOGI(TAG, "Closing NVS...");
 	if(generalNVS != 0) {
 		nvs_close(generalNVS);
 	}
@@ -88,6 +109,9 @@ void NVS::Close()
 
 esp_err_t NVS::readNVSString(nvs_handle aHandle, const char *aKey, char *aValue, size_t maxLen)
 {
+	if(aHandle == 0)
+		ESP_LOGW(TAG, "Handle is NULL Read %s value not Found!", aKey);
+
 	esp_err_t err = ESP_OK;
 	if( xSemaphoreTake( semAction, ( TickType_t ) 10 ) == pdTRUE ) {
 		err = nvs_get_str(aHandle, aKey, aValue, &maxLen);

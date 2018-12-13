@@ -26,6 +26,10 @@
 
 #define WIFISTATION_BACONSINTERVAL 10
 
+#define WIFI_LEN_SSID 32
+#define WIFI_LEN_PASSWORD 64
+#define WIFI_LEN_TZ	128
+
 class WiFi {
 public:
 	static EventGroupHandle_t wifiEG;
@@ -57,6 +61,7 @@ private:
 public:
 	static WiFi* getInstance();
 	esp_err_t init();
+	esp_err_t configure();
 	esp_err_t connectAP();
 	esp_err_t connectAP(const std::string& ssid, const std::string& password, wifi_mode_t mode);
 	void setAP(const std::string& ssid, const std::string& password);

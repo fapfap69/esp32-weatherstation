@@ -43,6 +43,7 @@
 #include "lib/WiFi/WiFi.h"
 #include "WeatherStation.h"
 
+#include "station.h"
 
 static const char*TAG = "appLoader";
 
@@ -56,7 +57,6 @@ extern const uint8_t server_cert_pem_end[] asm("_binary_ca_cert_pem_end");
 
 static esp_err_t mQttCommandCBfunction(esp_mqtt_event_handle_t event, void *cx)
 {
-	mQttClient *mQtt = mQttClient::getInstance();
 	UpdateFirmware *UpFwr = UpdateFirmware::getInstance();
 
 	char Command[256+1];
@@ -95,18 +95,9 @@ static void init_ulp_program()
     ESP_ERROR_CHECK(err);
 
     /* GPIO used for pulse counting. */
-    gpio_num_t gpio_num = PIN_DIG_4; //GPIO_NUM_0;
+    gpio_num_t gpio_num = RAINGAUGE_PULSE_PIN; //GPIO_NUM_0;
     assert(rtc_gpio_desc[gpio_num].reg && "GPIO used for pulse counting must be an RTC IO");
 
-    /* Initialize some variables used by ULP program.
-     * Each 'ulp_xyz' variable corresponds to 'xyz' variable in the ULP program.
-     * These variables are declared in an auto generated header file,
-     * 'ulp_main.h', name of this file is defined in component.mk as ULP_APP_NAME.
-     * These variables are located in RTC_SLOW_MEM and can be accessed both by the
-     * ULP and the main CPUs.
-     *
-     * Note that the ULP reads only the lower 16 bits of these variables.
-     */
     ulp_debounce_counter = 3;
     ulp_debounce_max_count = 3;
     ulp_next_edge = 0;
@@ -150,22 +141,29 @@ static uint32_t update_pulse_count()
 }
 
 
-
 void app_main()
 {
-    char ssid[WIFI_LEN_SSID+1];
-    char password[WIFI_LEN_PASSWORD+1];
-    char broker[MQTTCL_LEN_BROKER];
-    char station[MQTTCL_LEN_STATION];
     int	rainGlobalCount;
+    char buf[128];
+    char buf1[128];
+    int rainPeriodCount = 0;
+    BaseType_t xRet;
+    TaskHandle_t xTenMin = NULL;
 
-    SSD1306 oled = SSD1306(I2C_NUM_0, OLED_I2CSDA, OLED_I2CSCL);
+    // set up the led blinker
+    Blinker	*blkLed = Blinker::getInstance();
+    blkLed->SetPin(PIN_BOARD_LED);
+    blkLed->SetPat(BKS_BOOT);
+    blkLed->StartBlink();
+
+    /*
+    SSD1306 oled = SSD1306(OLED_I2CDEV, OLED_I2CSDA, OLED_I2CSCL);
     oled.begin(0, OLED_ADDRESS, true);
     oled.println("Weather Station v1!\n");
     oled.display();
+	*/
 
-    // Decode the type of running
-    int rainPeriodCount = 0;
+    // Decode the type of running : A first run or a wakeup
     esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
     if (cause != ESP_SLEEP_WAKEUP_TIMER  && cause != ESP_SLEEP_WAKEUP_ULP) {
     	ESP_LOGI(TAG, "Not ULP wakeup, initializing ULP");
@@ -175,73 +173,77 @@ void app_main()
     	rainPeriodCount = update_pulse_count();
     }
 
-    // --- Switch Off
-    //::esp_bt_controller_disable();
-
+    // Start the flash NVS data
     NVS *nvs = NVS::getInstance();
     nvs->Init(DATA_PARTITION_NAME, DEVICE_PARTITION_NAME);
-    if( nvs->rStr_Dev("wifi_ssd",ssid,WIFI_LEN_SSID) != ESP_OK ) strcpy(ssid,WIFI_SSD);
-    if( nvs->rStr_Dev("wifi_password",password,WIFI_LEN_PASSWORD) != ESP_OK ) strcpy(password,WIFI_PASSWORD);
-    if( nvs->rStr_Dev("mqtt_broker_uri",broker,MQTTCL_LEN_BROKER) != ESP_OK ) strcpy(broker,MQTTCL_BROKER_URL);
-    if( nvs->rStr_Dev("device_name",station,MQTTCL_LEN_STATION) != ESP_OK ) strcpy(station,MQTTCL_STATION_NAME);
 
+    // Save the acquired rain value
     if( nvs->rInt_NVS("RainCounter", &rainGlobalCount) != ESP_OK ) rainGlobalCount = 0;
     rainGlobalCount += rainPeriodCount;
     nvs->wInt_NVS("RainCounter",rainGlobalCount);
 
-    Blinker	*blkLed = Blinker::getInstance();
-    blkLed->SetPin(PIN_BOARD_LED);
-    blkLed->SetPat("11000000");
-    blkLed->StartBlink();
-
+    // Setup the Wifi
     WiFi  *wifi = WiFi::getInstance();
-    wifi->setAP(ssid, password);
+    if( nvs->rStr_Dev("wifi_ssd",buf,WIFI_LEN_SSID) != ESP_OK ) strncpy(buf,WIFI_SSD,WIFI_LEN_SSID);
+    if( nvs->rStr_Dev("wifi_passwd",buf1,WIFI_LEN_PASSWORD) != ESP_OK ) strncpy(buf1,WIFI_PASSWORD,WIFI_LEN_PASSWORD);
+    wifi->setAP(buf, buf1);
     wifi->init();
     wifi->connectAP();
 
-    obtain_time(wifi, WEATERSTATION_TZ);
+    // Get the good time
+    if( nvs->rStr_Dev("station_tz",buf,WIFI_LEN_TZ) != ESP_OK ) strncpy(buf,WEATERSTATION_TZ,WIFI_LEN_TZ);
+    obtain_time(wifi, buf);
 
+    // SetUo the Firmware update object
     UpdateFirmware *UpFwr = UpdateFirmware::getInstance();
 
+    // Set Up the mQtt
     mQttClient 	  *mQtt = mQttClient::getInstance();
-    mQtt->setBrokerUri(broker);
-    mQtt->setDeviceName(station);
+    if( nvs->rStr_Dev("mqtt_broker_uri",buf,MQTTCL_LEN_BROKER) != ESP_OK ) strncpy(buf,MQTTCL_BROKER_URL,MQTTCL_LEN_BROKER);
+    mQtt->setBrokerUri(buf);
+    if( nvs->rStr_Dev("device_name",buf,MQTTCL_LEN_STATION) != ESP_OK ) strncpy(buf,MQTTCL_STATION_NAME,MQTTCL_LEN_STATION);
+    mQtt->setDeviceName(buf);
     mQtt->init();
-    mQtt->Subscribe("/Command", mQttCommandCBfunction);
 
+    // Set Up the Weather Station
     WeatherStation *theStation = new WeatherStation();
     theStation->initStation();
     theStation->theStation.RainCounter = rainPeriodCount;
     theStation->theStation.RainGlobalCounter = rainGlobalCount;
 
-    BaseType_t xRet;
-    TaskHandle_t xTenMin = NULL;
+    // Start the Station activity
+   	blkLed->SetPat(BKS_ACTIVE_OK);
 
+    // Espose the Command subscription to the mQtt broker
+    mQtt->Subscribe("/Command", mQttCommandCBfunction);
+
+    // Run the Ten Minute Task
     xRet = xTaskCreate(theStation->everyTenMinutesTask,"Ten Minutes Task", 256, (void *)&theStation, tskIDLE_PRIORITY, &xTenMin);
-    if(xRet != pdPASS )
+    if(xRet != pdPASS ) {
+    	blkLed->SetPat(BKS_ERROR_SYS);
     	abort();
-
-    bool isFinishedTheJob = false;
-    while(!isFinishedTheJob) {
-    	vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
 
-    // -----
+    // and wait for the acquire completation
+    do {
+    	vTaskDelay(5000 / portTICK_PERIOD_MS);
+    	ESP_LOGD(TAG,"Waiting for the end of acuisition...");
+    } while(theStation->isAquire);
+
+    // Now go in deep sleep mode
+    ESP_LOGD(TAG, "Goind in ULP Sleep ");
+    blkLed->SetPat(BKS_REBOOT);
     vTaskDelete( xTenMin );
 
     mQtt->Stop();
     wifi->Sleep();
     nvs->Close();
     blkLed->StopBlink();
-    UpFwr->Restart();
 
-    // ----
-    ESP_LOGI(TAG, "ULP Sleep ");
     const int wakeup_time_sec = 60;
-    printf("Enabling timer wakeup, %ds\n", wakeup_time_sec);
+    ESP_LOGD(TAG,"Enabling timer wakeup, %ds", wakeup_time_sec);
     esp_sleep_enable_timer_wakeup(wakeup_time_sec * 1000000);
-
-    //esp_sleep_enable_ulp_wakeup();
     esp_deep_sleep_start();
 
+    return;
 }

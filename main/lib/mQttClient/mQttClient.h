@@ -31,6 +31,9 @@
 #define INVALID_PUBLICATION -1
 #define INVALID_SUBCRIPTION -1
 
+#define MQTTCL_LEN_BROKER	256
+#define MQTTCL_LEN_STATION	256
+
 #include "sdkconfig.h"
 
 #include <vector>

@@ -18,7 +18,6 @@ Ver. 0.1
 #define OVERSAMPLING 0 // low power consuming
 
 
-
 // class constructor
 Barometer::Barometer(I2Cmaster *Wire) {
 	theI2Cport = Wire;

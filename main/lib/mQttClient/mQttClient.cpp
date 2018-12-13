@@ -99,7 +99,7 @@ TickType_t mQttClient::xTicksToWait = MQTT_TIMEOUT_MILLISEC / portTICK_PERIOD_MS
 mQttClient *mQttClient::inst_ = NULL;   // The one, single instance
 SemaphoreHandle_t mQttClient::semAction = NULL;
 
-Blinker *mQttClient::blkLed = Blinker::getInstance();
+Blinker *mQttClient::blkLed = NULL;
 
 
 mQttClient* mQttClient::getInstance() {
@@ -112,12 +112,13 @@ mQttClient* mQttClient::getInstance() {
 
 mQttClient::mQttClient()
 {
+	blkLed = Blinker::getInstance();
 	mqttEG = xEventGroupCreate();
 	xEventGroupClearBits(mqttEG, MQTTCONNECTED | MQTTPUBLISHING);
-	semAction = xSemaphoreCreateBinary();
-    if( semAction == NULL ) {
-    	// ----
-    }
+	semAction = xSemaphoreCreateMutex();
+	if( semAction == NULL ) {
+		ESP_LOGE(TAG, "Error to create semaphore !");
+	}
 }
 
 char *mQttClient::getBrokerUri()
@@ -144,12 +145,16 @@ void mQttClient::setDeviceName(const char* aName)
 
 void mQttClient::Stop()
 {
-	if( xSemaphoreTake( semAction, ( TickType_t ) 10 ) == pdTRUE ) {
+	ESP_LOGD(TAG, "Stop the mQtt client...");
+	if( xSemaphoreTake( semAction, ( TickType_t ) 10000 ) == pdTRUE ) {
 		Start = false;
-		esp_mqtt_client_stop(client);
+		ESP_LOGD(TAG, "mQtt client stopping...");
 		esp_mqtt_client_destroy(client);
 		client = NULL;
+		ESP_LOGI(TAG, "mQtt client stopped !");
 		xSemaphoreGive( semAction );
+	} else {
+		ESP_LOGW(TAG, "Unable to stop the mQtt client");
 	}
     return;
 }
@@ -176,6 +181,9 @@ esp_err_t mQttClient::mqtt_event_handler(esp_mqtt_event_handle_t event)
 {
 	esp_err_t err;
     esp_mqtt_client_handle_t client = event->client;
+    char topic[250];
+   // char data[250];
+
     // your_context_t *context = event->context;
     switch (event->event_id) {
         case MQTT_EVENT_CONNECTED:
@@ -191,7 +199,7 @@ esp_err_t mQttClient::mqtt_event_handler(esp_mqtt_event_handle_t event)
 
         case MQTT_EVENT_ERROR:
             ESP_LOGW(TAG, "MQTT_EVENT_ERROR");
-            blkLed->SetPat("1100101010101000");
+            blkLed->SetPat(BKS_ERROR_MQTT);
             break;
 
         case MQTT_EVENT_PUBLISHED:
@@ -210,12 +218,15 @@ esp_err_t mQttClient::mqtt_event_handler(esp_mqtt_event_handle_t event)
             break;
 
         case MQTT_EVENT_DATA:
-            ESP_LOGD(TAG, "MQTT_EVENT_RECEICEDATA %s=%s",event->topic,event->data);
+        	memcpy(topic,event->topic,event->topic_len);
+        	topic[event->topic_len] = '\0';
+
+            ESP_LOGD(TAG, "MQTT_EVENT_RECEICEDATA %s=%s %d",topic, event->data, event->data_len);
     		for (unsigned i=0; i < ssItems.size(); i++) {
-    			if (ssItems[i].theName == event->topic) {
+    			if (ssItems[i].theName == topic) {
     				if(ssItems[i].theEventHandler != NULL) {
     					err = ssItems[i].theEventHandler(event, NULL);
-    					ESP_LOGD(TAG, "MQTT_EVENT_RECEICEDATA Execute CB fun %d",err);
+    					ESP_LOGD(TAG, "MQTT_EVENT_RECEICEDATA Execute CB fun (%s->%10s)",topic,event->data);
     					break;
     				}
     			}
@@ -251,8 +262,8 @@ int mQttClient::Publication(const char* ItemName, const char* Data, int dataLen)
 				ESP_LOGW(TAG, "Error to publish '%s', msg_id=%d",name, msg_id);
 				publishedMessageId = INVALID_PUBLICATION;
 			}
-			xSemaphoreGive(semAction);
 		}
+		xSemaphoreGive(semAction);
 	}
 	return publishedMessageId;
 }
