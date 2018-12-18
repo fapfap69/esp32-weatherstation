@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>     /* strtoul */
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -23,7 +24,7 @@
 #include "esp_err.h"
 #include "bootloader_common.h"
 #include "esp_image_format.h"
-
+#include "rom/crc.h"
 
 #include "nvs_flash.h"
 
@@ -46,6 +47,7 @@ const int UpdateFirmware::UPDFRW_ERROR = BIT2;
 
 esp_partition_t *UpdateFirmware::partToUpdate = NULL;
 char UpdateFirmware::serverUri[256] = DEF_APPSERVER_URI;
+const char *UpdateFirmware::tslCertificate = NULL;
 bool UpdateFirmware::updateDone = false;
 bool UpdateFirmware::updateStart = false;
 unsigned long UpdateFirmware::bytesDownloaded = 0;
@@ -114,6 +116,24 @@ void UpdateFirmware::http_cleanup(esp_http_client_handle_t client)
     return;
 }
 
+esp_err_t UpdateFirmware::checkSha256(const uint8_t *image_hash, const esp_partition_t *aPart)
+{
+	esp_err_t err;
+	uint8_t thePartitioSha[HASH_LEN] = { 0 };
+	err = esp_partition_get_sha256(aPart, thePartitioSha);
+	if(err != ESP_OK) {
+		return(err);
+	}
+	print_sha256(thePartitioSha, "SHA256 key for the application partition :");
+	for(int i=0;i<HASH_LEN;i++)
+		if(image_hash[i] != thePartitioSha[i]) {
+			ESP_LOGI(TAG, "The SHA256 code differs !");
+			return(-1);
+		}
+	ESP_LOGI(TAG, "SHA256 checks is OK !");
+    return(ESP_OK);
+
+}
 void UpdateFirmware::print_sha256 (const uint8_t *image_hash, const char *label)
 {
     char hash_print[HASH_LEN * 2 + 1];
@@ -124,6 +144,146 @@ void UpdateFirmware::print_sha256 (const uint8_t *image_hash, const char *label)
     ESP_LOGI(TAG, "%s: %s", label, hash_print);
     return;
 }
+
+esp_err_t UpdateFirmware::readSha256fromURI(const char* aUri, const char* aCert, uint8_t *image_hash)
+{
+	esp_err_t err = ESP_OK;
+	char shaBuffer[128];
+
+	if (httpGet(aUri, aCert) != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to get data from http server: %s", esp_err_to_name(err));
+		return(err);
+	}
+
+    int fetchResponse = esp_http_client_fetch_headers(client);
+    if( fetchResponse == ESP_FAIL) {
+    	ESP_LOGE(TAG, "Failed to get data from http server: %s", esp_err_to_name(err));
+		return(err);
+    }
+    else if (fetchResponse == 0) {
+    	ESP_LOGE(TAG, "Get data from http server returns 0 bytes !");
+		return(err);
+    }
+	ESP_LOGW(TAG, "Start the download of SHA256 file...");
+	int data_read = 0;
+	int totalData = 0;
+    while (1) {
+        data_read = esp_http_client_read(client, &shaBuffer[totalData], 128-totalData);
+        if (data_read < 0) {
+            ESP_LOGE(TAG, "Error: SSL data read error");
+           	setError(ESP_ERR_HTTP_INVALID_TRANSPORT, BKS_ERROR_WIFI);
+            return(err);
+        } else if (data_read > 0) {
+        	totalData += data_read;
+        	if(totalData > 64) {
+                ESP_LOGE(TAG, "Error: Wrong SHA256 File contents !");
+               	setError(ESP_ERR_HTTP_INVALID_TRANSPORT, BKS_ERROR_WIFI);
+                return(ESP_ERR_HTTP_INVALID_TRANSPORT);
+        	}
+        } else if (data_read == 0) {
+            ESP_LOGI(TAG, "Connection closed,all data received");
+            break;
+        }
+        vTaskDelay(10); // just to feed the watchdog
+    }
+	blkLed->SetPat(BKS_ACTIVE_OK);
+
+	shaBuffer[totalData] = '\0';
+	ESP_LOGD(TAG, "Received data (%d) >>%s<<", totalData, shaBuffer);
+	for(int i=(totalData - 1) / 2;i>=0;i--) {
+		image_hash[i] = (uint8_t) strtoul((const char*)&(shaBuffer[i*2]), NULL, 16);
+		shaBuffer[i*2] = '\0';
+	}
+	return (ESP_OK);
+}
+
+esp_err_t UpdateFirmware::checkCrc32(const uint32_t image_crc, const esp_partition_t *aPart, size_t imageSize)
+{
+	esp_err_t err;
+	uint32_t sliceSize = 4096;
+
+	uint8_t *buffer = (uint8_t *)malloc(sliceSize);
+	if(buffer == NULL) {
+		ESP_LOGE(TAG, "Error to allocate memory. Abort!");
+		return(-1);
+	}
+	uint32_t readData = 0;
+	uint32_t partCrc32 = 0;
+
+	while(readData < imageSize) {
+		if(imageSize - readData < sliceSize) sliceSize = imageSize - readData;
+		err = esp_partition_read(aPart, readData, buffer, sliceSize);
+		if(err != ESP_OK) {
+			ESP_LOGE(TAG, "Error to read partition. Abort!");
+			free(buffer);
+			return(-1);
+		}
+		partCrc32 = crc32_le(partCrc32, buffer, sliceSize);
+		readData += sliceSize;
+	}
+	ESP_LOGI(TAG, "The partition CRC32 value is = %08X ", partCrc32);
+
+	if(image_crc != partCrc32) {
+		ESP_LOGI(TAG, "The CRC32 codes differs !");
+		free(buffer);
+		return(-1);
+	}
+	ESP_LOGI(TAG, "CRC32 checks is OK !");
+	free(buffer);
+    return(ESP_OK);
+}
+
+esp_err_t UpdateFirmware::readCrc32fromURI(const char* aUri, const char* aCert, uint32_t *crc32)
+{
+	esp_err_t err = ESP_OK;
+	char crcBuffer[16];
+
+	if (httpGet(aUri, aCert) != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to get data from http server: %s", esp_err_to_name(err));
+		return(err);
+	}
+
+    int fetchResponse = esp_http_client_fetch_headers(client);
+    if( fetchResponse == ESP_FAIL) {
+    	ESP_LOGE(TAG, "Failed to get data from http server: %s", esp_err_to_name(err));
+		return(err);
+    }
+    else if (fetchResponse == 0) {
+    	ESP_LOGE(TAG, "Get data from http server returns 0 bytes !");
+		return(err);
+    }
+	ESP_LOGW(TAG, "Start the download of CRC32 file...");
+	int data_read = 0;
+	int totalData = 0;
+    while (1) {
+        data_read = esp_http_client_read(client, &crcBuffer[totalData], 16-totalData);
+        if (data_read < 0) {
+            ESP_LOGE(TAG, "Error: SSL data read error");
+           	setError(ESP_ERR_HTTP_INVALID_TRANSPORT, BKS_ERROR_WIFI);
+            return(err);
+        } else if (data_read > 0) {
+        	totalData += data_read;
+        	if(totalData > 8) {
+                ESP_LOGE(TAG, "Error: Wrong CRC32 File contents !");
+               	setError(ESP_ERR_HTTP_INVALID_TRANSPORT, BKS_ERROR_WIFI);
+                return(ESP_ERR_HTTP_INVALID_TRANSPORT);
+        	}
+        } else if (data_read == 0) {
+            ESP_LOGI(TAG, "Connection closed,all data received");
+            break;
+        }
+        vTaskDelay(10); // just to feed the watchdog
+    }
+	blkLed->SetPat(BKS_ACTIVE_OK);
+
+	crcBuffer[totalData] = '\0';
+	ESP_LOGD(TAG, "Received data (%d) >>%s<<", totalData, crcBuffer);
+	*crc32 = (uint32_t) strtoul((const char*)&(crcBuffer), NULL, 16);
+	return (ESP_OK);
+
+
+}
+
 
 bool UpdateFirmware::checkPartTable()
 {
@@ -205,23 +365,10 @@ bool UpdateFirmware::checkPartTable()
     return(true);
 }
 
-esp_err_t UpdateFirmware::Update(const char *aServerUri, const char *aServerCertPem)
+esp_err_t UpdateFirmware::httpGet(const char *aServerUri, const char *aServerCertPem)
 {
-	//char uri[256];
-	//char cer[1024];
-
-    esp_err_t err;
-    if(!isGoodForAOTA || !isGoodForDownload) {
-        ESP_LOGW(TAG, "Reject the AOTA update ! %d %d ",isGoodForAOTA, isGoodForDownload);
-        return(setError(ESP_ERR_OTA_PARTITION_CONFLICT, BKS_ERROR_SYS));
-    }
-
-	blkLed->SetPat("1100000000000000");
-
-    ESP_LOGD(TAG, "Starting Application Update... ");
-    updateStart = true;
-
-    int wifiTimeOut = WIFI_TIMEOUT_CYCLES;
+	esp_err_t err;
+	int wifiTimeOut = WIFI_TIMEOUT_CYCLES;
     wifi_ap_record_t ap_info;
     while( esp_wifi_sta_get_ap_info(&ap_info) != ESP_OK) {
         vTaskDelay(250 / portTICK_PERIOD_MS);
@@ -237,12 +384,10 @@ esp_err_t UpdateFirmware::Update(const char *aServerUri, const char *aServerCert
     }
     esp_http_client_config_t config;
     memset(&config,0,sizeof(esp_http_client_config_t));
-    //strcpy(uri,aServerUri);
-   // strcpy(cer,aServerCertPem);
     config.url = aServerUri;
     config.cert_pem = aServerCertPem;
     config.event_handler = UpdateFirmware::_http_event_handler;
-
+    config.buffer_size = BUFFSIZE;
     client = esp_http_client_init(&config);
     if (client == NULL) {
         ESP_LOGE(TAG, "Failed to initialise HTTP connection");
@@ -254,6 +399,25 @@ esp_err_t UpdateFirmware::Update(const char *aServerUri, const char *aServerCert
         ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
 		return(setError(ESP_ERR_HTTP_CONNECTING, BKS_ERROR_WIFI));
     }
+    return(ESP_OK);
+}
+esp_err_t UpdateFirmware::Update(const char *aServerUri, const char *aServerCertPem)
+{
+
+	strncpy(serverUri, aServerUri, 256);
+	tslCertificate = aServerCertPem;
+
+    esp_err_t err = ESP_OK;
+    if(!isGoodForAOTA || !isGoodForDownload) {
+        ESP_LOGW(TAG, "Reject the AOTA update ! %d %d ",isGoodForAOTA, isGoodForDownload);
+        return(setError(ESP_ERR_OTA_PARTITION_CONFLICT, BKS_ERROR_SYS));
+    }
+
+	blkLed->SetPat("1100000000000000");
+	if (httpGet(aServerUri, aServerCertPem) != ESP_OK) {
+		ESP_LOGE(TAG, "Failed to get data from http server: %s", esp_err_to_name(err));
+		return(setError(ESP_ERR_HTTP_CONNECTING, BKS_ERROR_WIFI));
+	}
 
     int fetchResponse = esp_http_client_fetch_headers(client);
     if( fetchResponse == ESP_FAIL) {
@@ -277,7 +441,7 @@ void UpdateFirmware::download(void *ptrPar)
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ota_begin failed (%s)", esp_err_to_name(err));
        	setError(err, BKS_ERROR_SYS);
-        return;
+       	vTaskDelete( NULL );
     }
     ESP_LOGI(TAG, "esp_ota_begin succeeded");
 
@@ -289,13 +453,13 @@ void UpdateFirmware::download(void *ptrPar)
         if (data_read < 0) {
             ESP_LOGE(TAG, "Error: SSL data read error");
            	setError(ESP_ERR_HTTP_INVALID_TRANSPORT, BKS_ERROR_WIFI);
-            return;
+            vTaskDelete( NULL );
         } else if (data_read > 0) {
         	err = esp_ota_write( update_handle, (const void *)ota_write_data, data_read);
             if (err != ESP_OK) {
                 ESP_LOGE(TAG, "OTA Write error ! (%s)",  esp_err_to_name(err));
                	setError(ESP_ERR_HTTP_INVALID_TRANSPORT, BKS_ERROR_WIFI);
-                return;
+                vTaskDelete( NULL );
             }
             bytesDownloaded += data_read;
             ESP_LOGD(TAG, "Written image length %lu", bytesDownloaded);
@@ -308,18 +472,59 @@ void UpdateFirmware::download(void *ptrPar)
 	blkLed->SetPat("1111111100000000");
     ESP_LOGI(TAG, "Total Write binary data length : %lu", bytesDownloaded);
     err = esp_ota_end(update_handle);
+    //ESP_LOGI(TAG, "BINGO ");
     if(err != ESP_OK) {
     	ESP_LOGE(TAG, "OTA end failed! %s",esp_err_to_name(err));
     	setError(err, BKS_ERROR_SYS);
-		return;
+        vTaskDelete( NULL );
     }
     update_handle = 0;
 	xEventGroupSetBits(egUpdateFirmware, UPDFRW_DONE);
     updateStart = false;
     updateDone = true;
-    return;
+    http_cleanup(client);
+   	lastErrCode = ESP_OK;
+   	blkLed->SetPat(BKS_ACTIVE_OK);
+    vTaskDelete( NULL );
 }
 
+esp_err_t UpdateFirmware::CheckUpdate()
+{
+	esp_err_t err;
+	/*
+	uint8_t image_hash[HASH_LEN];
+	ESP_LOGD(TAG, "Check Update firmware...");
+	changeExtension(serverUri, "sha256");
+	err = readSha256fromURI(serverUri, tslCertificate, image_hash);
+	print_sha256(image_hash, "The SHA256 read from File is=");
+	if(err == ESP_OK) {
+		err = checkSha256((const uint8_t *)image_hash, partApplication);
+		if(err == ESP_OK) {
+			return(err);
+		}
+	}
+	*/
+	uint32_t theCrc32 = 0;
+	ESP_LOGD(TAG, "Check Update firmware...");
+	changeExtension(serverUri, "crc32");
+	err = readCrc32fromURI(serverUri, tslCertificate, &theCrc32);
+	if(err == ESP_OK) {
+		err = checkCrc32(theCrc32, partApplication, bytesDownloaded);
+	}
+	return(err);
+}
+void UpdateFirmware::changeExtension(char *aFileName, const char *newExtension)
+{
+	int i = strlen(aFileName);
+	int n = strlen(newExtension);
+	while(aFileName[i-1] != '.' && i>1) {
+		i--;
+	}
+	if(i>1) {
+		for(int j =0;j<=n;j++) aFileName[i++] = newExtension[j];
+	}
+	return;
+}
 
 esp_err_t UpdateFirmware::SwitchPartition()
 {
@@ -358,7 +563,7 @@ void UpdateFirmware::executeTheReboot(void *cx)
 	fflush(stdout);
 	blkLed->StopBlink();
 	esp_restart();
-	return;
+	vTaskDelete( NULL );
 }
 esp_err_t UpdateFirmware::SwitchToLoader()
 {

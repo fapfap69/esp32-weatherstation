@@ -37,6 +37,7 @@ public:
 private:
 	static esp_partition_t *partToUpdate;
 	static char serverUri[256];
+	static const char *tslCertificate;
 	static bool updateDone;
 	static bool updateStart;
 	static unsigned long bytesDownloaded;
@@ -68,6 +69,7 @@ public:
 	esp_err_t SwitchToLoader();
 	esp_err_t SwitchToApplication();
 	esp_err_t ResetAfterError();
+	esp_err_t CheckUpdate();
 
 private:
 	UpdateFirmware(); // private constructor
@@ -77,6 +79,13 @@ private:
 
 private:
 	void print_sha256 (const uint8_t *image_hash, const char *label);
+	esp_err_t readSha256fromURI(const char* aUri, const char* aCert, uint8_t *image_hash);
+	esp_err_t httpGet(const char *aServerUri, const char *aServerCertPem);
+	esp_err_t checkSha256(const uint8_t *image_hash, const esp_partition_t *aPart);
+	void changeExtension(char *aFileName, const char *newExtension);
+	esp_err_t readCrc32fromURI(const char* aUri, const char* aCert, uint32_t *crc32);
+	esp_err_t checkCrc32(const uint32_t image_crc, const esp_partition_t *aPart, size_t imageSize);
+
 	bool checkPartTable();
 	static void download(void *);
 	static esp_err_t setError(esp_err_t errNo, const char *blkPat);

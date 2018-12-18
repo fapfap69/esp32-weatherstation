@@ -1,16 +1,16 @@
 key,type,encoding,value
 Station,namespace,,
 serial_no,data,string,16458934
-wifi_ssd,data,string,AppleFap
+wifi_ssd,data,string,Apple-fap
 wifi_passwd,data,string,PaperinO
 device_name,data,string,Station1
 station_name,data,string,Trullo Ogiggia
 station_long_s,data,string,1^10' E
 station_lat_s,data,string,41^15' N
 station_alt_s,data,string,350 msl
-station_tz_s,data,string,CET+1CEST,M3.5.0/2,M10.5.0/3
+station_tz_s,data,string,CET-1CEST,M3.5.0/2,M10.5.0/3
 station_long,data,string,1.54
 station_lat,data,string,41.5
 station_alt,data,string,350.4
-mqtt_broker_uri,data,string,mqtt://192.168.0.5:1883
+mqtt_broker_uri,data,string,mqtt://192.168.178.26:1883
 

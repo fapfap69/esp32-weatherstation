@@ -25,8 +25,8 @@
 
 #define TEMPERATURE_IS_CELSIUS true
 
-#define MQTTCL_BROKER_URL		"mqtt://192.168.0.5:1883"
-#define MQTTCL_STATION_NAME	"pippo"
+#define MQTTCL_BROKER_URL	"mqtt://172.20.42.42:1883"
+#define MQTTCL_STATION_NAME	"Test"
 
 
 #endif /* MAIN_STATION_H_ */

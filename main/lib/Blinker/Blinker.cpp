@@ -47,7 +47,6 @@ Blinker::Blinker()
     	xHandle = NULL;
     }
 }
-
 void Blinker::SetPat(const char *blinkPat)
 {
 	const char *ptr = blinkPat;
@@ -70,17 +69,20 @@ void Blinker::SetPat(const char *blinkPat)
 
 void Blinker::StartBlink()
 {
-	gpio_pad_select_gpio((gpio_num_t)BLINK_GPIO);
-    gpio_set_direction((gpio_num_t)BLINK_GPIO, GPIO_MODE_OUTPUT);
-    xTaskCreate(&Blinker::blink,"Blink Led" , 8192, NULL, tskIDLE_PRIORITY, &xHandle);
+	gpio_pad_select_gpio(gpioNum);
+    gpio_set_direction(gpioNum, GPIO_MODE_OUTPUT);
+    xTaskCreate(&Blinker::blink,"Blink Led" , 2048, NULL, tskIDLE_PRIORITY, &xHandle);
     return;
 }
 
 void Blinker::StopBlink()
 {
-	gpio_pad_select_gpio((gpio_num_t)BLINK_GPIO);
-    gpio_set_direction((gpio_num_t)BLINK_GPIO, GPIO_MODE_OUTPUT);
-    if(xHandle != NULL) vTaskDelete(xHandle);
+	gpio_pad_select_gpio(gpioNum);
+    gpio_set_direction(gpioNum, GPIO_MODE_OUTPUT);
+    if(xHandle != NULL) {
+    	vTaskDelete(xHandle);
+    	xHandle = NULL;
+    }
     return;
 }
 
@@ -99,7 +101,7 @@ void Blinker::blink( void * pvParameters )
     	case '.':
     	case '0':
     	case 'F':
-    		gpio_set_level(gpioNum, 1);
+    		gpio_set_level(gpioNum, 0);
     		break;
     	}
     	xSemaphoreGive( semAction );

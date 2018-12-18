@@ -37,6 +37,8 @@
 
 #include "station.h"
 
+static const char*TAG = "WeSta";
+
 WeatherStation::WeatherStation() {
 	// TODO Auto-generated constructor stub
 
@@ -53,7 +55,7 @@ bool WeatherStation::initStation()
 
 	theStation.Windgauge = new CounterUp(WINDGAUGE_PULSE_PIN);
 	theStation.Windgauge->setEdge(true);
-	theStation.Windgauge->setFilter(true, 3000);
+	theStation.Windgauge->setFilter(true, 120);
 	theStation.Windgauge->pause();
 
 	theStation.Termogauge = new DHThumidity();
@@ -68,9 +70,12 @@ bool WeatherStation::initStation()
 void WeatherStation::everyTenMinutesTask(void *cx)
 {
 	WeatherStation *ws = (WeatherStation *)cx;
-
 	ws->isAquire = true;
+	ESP_LOGD(TAG, "Start the 10 minutes Task... %d", ws->isAquire);
+
+
 	// SetUp the counter foer WindSpeed
+	/*
 	time_t startWindAquire;
 	startWindAquire = time (NULL);
 	ws->theStation.Windgauge->start(); // clear the counter
@@ -120,7 +125,7 @@ void WeatherStation::everyTenMinutesTask(void *cx)
 	ws->theStation.Windgauge->pause();
 	float period = endWindAquire - startWindAquire;
 	ws->MeteoValues.WindSpeed = ws->theStation.Windcounter * 1.0 / period;
-
+*/
 	// put the time stamp
 	time_t rawtime;
 	struct tm * timeinfo;
@@ -128,10 +133,12 @@ void WeatherStation::everyTenMinutesTask(void *cx)
 	timeinfo = localtime (&rawtime);
     strftime (ws->MeteoValues.TimeStamp,60,"%c",timeinfo);
 
+    vTaskDelay(3000 / portTICK_PERIOD_MS);
     ws->pubValues();
 
     ws->isAquire = false;
-	return;
+
+    vTaskDelete(NULL);
 }
 
 bool WeatherStation::setPubClient(mQttClient *aMqttClient)
@@ -144,28 +151,40 @@ bool WeatherStation::pubValues()
 {
 	char buf[512];
 	NVS *nvs = NVS::getInstance();
+	EventBits_t ConBit = 0;
+	uint16_t TimeOut = 20000;
 
-    mQtt->Publication("/App/Name", APPLICATIONNAME,0);
-    mQtt->Publication("/App/Version",VERSION,0);
+	ESP_LOGD(TAG, "Publication of Meteo values ... ");
+    while(ConBit != mQttClient::MQTTCONNECTED) {
+    	ConBit = xEventGroupWaitBits(mQtt->mqttEG,mQttClient::MQTTCONNECTED, false, true, 250 / portTICK_PERIOD_MS);
+    	if(--TimeOut == 0) {
+    		ESP_LOGE(TAG, "Time Out to connect the mQtt broker. Abort ! ");
+    		return(false);
+    	}
+    }
+
+    mQtt->Publication("App/Name", APPLICATIONNAME,0);
+    mQtt->Publication("App/Version",VERSION,0);
 
     if( nvs->rStr_Dev("station_name",buf,512) != ESP_OK ) strcpy(buf,WEATERSTATION_NAME);
-    mQtt->Publication("/Station/Name",buf,0);
+    mQtt->Publication("Station/Name",buf,0);
     if( nvs->rStr_Dev("station_long_s",buf,512) != ESP_OK ) strcpy(buf,WEATERSTATION_LONGITUDE_S);
-    mQtt->Publication("/Station/Longitude",WEATERSTATION_LONGITUDE_S,0);
+    mQtt->Publication("Station/Longitude",WEATERSTATION_LONGITUDE_S,0);
     if( nvs->rStr_Dev("station_lat_s",buf,512) != ESP_OK ) strcpy(buf,WEATERSTATION_LATITUDE_S);
-    mQtt->Publication("/Station/Latitude",WEATERSTATION_LATITUDE_S,0);
+    mQtt->Publication("Station/Latitude",WEATERSTATION_LATITUDE_S,0);
     if( nvs->rStr_Dev("station_alt_s",buf,512) != ESP_OK ) strcpy(buf,WEATERSTATION_ALTITUDE_S);
-    mQtt->Publication("/Station/Altitude",WEATERSTATION_ALTITUDE_S,0);
+    mQtt->Publication("Station/Altitude",WEATERSTATION_ALTITUDE_S,0);
 
-    mQtt->Publication("/Meteo/Time",MeteoValues.TimeStamp,0);
-    mQtt->Publication("/Meteo/Temperature", MeteoValues.Temperature);
-    mQtt->Publication("/Meteo/Pressure", MeteoValues.Pressure);
-    mQtt->Publication("/Meteo/Humidity", MeteoValues.Humidity);
-    mQtt->Publication("/Meteo/DevPoint", MeteoValues.DevPoint);
-    mQtt->Publication("/Meteo/WindSpeed", MeteoValues.WindSpeed);
-    mQtt->Publication("/Meteo/WindAngle", MeteoValues.WindDirection);
-    mQtt->Publication("/Meteo/WindDirection", convertWindDirection(MeteoValues.WindDirection), 0);
-    mQtt->Publication("/Meteo/Rain", MeteoValues.RainDrop);
+    mQtt->Publication("Meteo/Time",MeteoValues.TimeStamp,0);
+    mQtt->Publication("Meteo/Temperature", MeteoValues.Temperature);
+    mQtt->Publication("Meteo/Pressure", MeteoValues.Pressure);
+    mQtt->Publication("Meteo/Humidity", MeteoValues.Humidity);
+    mQtt->Publication("Meteo/DevPoint", MeteoValues.DevPoint);
+    mQtt->Publication("Meteo/WindSpeed", MeteoValues.WindSpeed);
+    mQtt->Publication("Meteo/WindAngle", MeteoValues.WindDirection);
+    mQtt->Publication("Meteo/WindDirection", convertWindDirection(MeteoValues.WindDirection), 0);
+    mQtt->Publication("Meteo/Rain", MeteoValues.RainDrop);
+	ESP_LOGI(TAG, "Publication Meteo Values, DONE ! ");
     return true;
 }
 

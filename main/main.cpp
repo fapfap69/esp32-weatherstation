@@ -45,7 +45,7 @@
 
 #include "station.h"
 
-static const char*TAG = "appLoader";
+static const char*TAG = "ws_main";
 
 extern "C" {
     void app_main();
@@ -163,6 +163,10 @@ void app_main()
     oled.display();
 	*/
 
+    // Start the flash NVS data
+    NVS *nvs = NVS::getInstance();
+    nvs->Init(DATA_PARTITION_NAME, DEVICE_PARTITION_NAME);
+
     // Decode the type of running : A first run or a wakeup
     esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
     if (cause != ESP_SLEEP_WAKEUP_TIMER  && cause != ESP_SLEEP_WAKEUP_ULP) {
@@ -173,10 +177,6 @@ void app_main()
     	rainPeriodCount = update_pulse_count();
     }
 
-    // Start the flash NVS data
-    NVS *nvs = NVS::getInstance();
-    nvs->Init(DATA_PARTITION_NAME, DEVICE_PARTITION_NAME);
-
     // Save the acquired rain value
     if( nvs->rInt_NVS("RainCounter", &rainGlobalCount) != ESP_OK ) rainGlobalCount = 0;
     rainGlobalCount += rainPeriodCount;
@@ -186,12 +186,10 @@ void app_main()
     WiFi  *wifi = WiFi::getInstance();
     if( nvs->rStr_Dev("wifi_ssd",buf,WIFI_LEN_SSID) != ESP_OK ) strncpy(buf,WIFI_SSD,WIFI_LEN_SSID);
     if( nvs->rStr_Dev("wifi_passwd",buf1,WIFI_LEN_PASSWORD) != ESP_OK ) strncpy(buf1,WIFI_PASSWORD,WIFI_LEN_PASSWORD);
-    wifi->setAP(buf, buf1);
-    wifi->init();
-    wifi->connectAP();
+    wifi->connectAP(buf, buf1, WIFI_MODE_STA);
 
     // Get the good time
-    if( nvs->rStr_Dev("station_tz",buf,WIFI_LEN_TZ) != ESP_OK ) strncpy(buf,WEATERSTATION_TZ,WIFI_LEN_TZ);
+    if( nvs->rStr_Dev("station_tz_s",buf,WIFI_LEN_TZ) != ESP_OK ) strncpy(buf,WEATERSTATION_TZ,WIFI_LEN_TZ);
     obtain_time(wifi, buf);
 
     // SetUo the Firmware update object
@@ -200,9 +198,9 @@ void app_main()
     // Set Up the mQtt
     mQttClient 	  *mQtt = mQttClient::getInstance();
     if( nvs->rStr_Dev("mqtt_broker_uri",buf,MQTTCL_LEN_BROKER) != ESP_OK ) strncpy(buf,MQTTCL_BROKER_URL,MQTTCL_LEN_BROKER);
-    mQtt->setBrokerUri(buf);
+    mQtt->setBrokerUri("mqtt://192.168.178.26:1883");//buf);
     if( nvs->rStr_Dev("device_name",buf,MQTTCL_LEN_STATION) != ESP_OK ) strncpy(buf,MQTTCL_STATION_NAME,MQTTCL_LEN_STATION);
-    mQtt->setDeviceName(buf);
+    mQtt->setDeviceName("Test");//buf);
     mQtt->init();
 
     // Set Up the Weather Station
@@ -218,7 +216,7 @@ void app_main()
     mQtt->Subscribe("/Command", mQttCommandCBfunction);
 
     // Run the Ten Minute Task
-    xRet = xTaskCreate(theStation->everyTenMinutesTask,"Ten Minutes Task", 256, (void *)&theStation, tskIDLE_PRIORITY, &xTenMin);
+    xRet = xTaskCreate(theStation->everyTenMinutesTask,"Ten Minutes Task", 8192, (void *)theStation, tskIDLE_PRIORITY, &xTenMin);
     if(xRet != pdPASS ) {
     	blkLed->SetPat(BKS_ERROR_SYS);
     	abort();
@@ -227,13 +225,15 @@ void app_main()
     // and wait for the acquire completation
     do {
     	vTaskDelay(5000 / portTICK_PERIOD_MS);
-    	ESP_LOGD(TAG,"Waiting for the end of acuisition...");
+    	ESP_LOGD(TAG,"Waiting for the end of acquisition...%d",theStation->isAquire);
     } while(theStation->isAquire);
 
     // Now go in deep sleep mode
-    ESP_LOGD(TAG, "Goind in ULP Sleep ");
+    ESP_LOGD(TAG, "Going in ULP Sleep ");
     blkLed->SetPat(BKS_REBOOT);
-    vTaskDelete( xTenMin );
+
+   	vTaskDelay(1000 / portTICK_PERIOD_MS);
+  //  if(xTenMin != NULL) vTaskDelete( xTenMin );
 
     mQtt->Stop();
     wifi->Sleep();

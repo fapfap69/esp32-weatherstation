@@ -35,7 +35,7 @@ static const char* TAG = "WiFi";
 const int WiFi::WIFICONNECTED = BIT0;
 const int WiFi::WIFIRUNNING = BIT1;
 
-Blinker *WiFi::blkLed = Blinker::getInstance();
+Blinker *WiFi::blkLed = NULL;
 EventGroupHandle_t WiFi::wifiEG = 0;
 ip4_addr_t		WiFi::ip = {.addr = 0};
 ip4_addr_t		WiFi::gw = {.addr = 0};
@@ -58,6 +58,7 @@ WiFi* WiFi::getInstance() {
 
 WiFi::WiFi()
 {
+	blkLed = Blinker::getInstance();
 	wifiEG = xEventGroupCreate();
 	xEventGroupClearBits(wifiEG, WIFICONNECTED | WIFIRUNNING);
 	semAction = xSemaphoreCreateMutex();
@@ -88,9 +89,11 @@ esp_err_t WiFi::connectAP(const std::string& ssid, const std::string& password, 
 	m_passwd = password;
 	m_mode = mode;
 	err = init();
-	err = configure();
-	if(err == ESP_OK)
-		err = connectAP();
+	if(err == ESP_OK) {
+		err = configure();
+		if(err == ESP_OK)
+			err = connectAP();
+	}
 	return(err);
 }
 
