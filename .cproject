@@ -46,6 +46,7 @@
 									<listOptionValue builtIn="false" value="&quot;${IDF_PATH}/components/bt/include&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${IDF_PATH}/components/ulp/include&quot;"/>
 									<listOptionValue builtIn="false" value="../main/components"/>
+									<listOptionValue builtIn="false" value="/Users/fap/esp/esp-idf/components/esp_ringbuf/include"/>
 								</option>
 								<option id="gnu.c.compiler.option.dialect.std.2068870238" name="Language standard" superClass="gnu.c.compiler.option.dialect.std" useByScannerDiscovery="true" value="gnu.c.compiler.dialect.default" valueType="enumerated"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.1022113672" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
@@ -75,6 +76,7 @@
 									<listOptionValue builtIn="false" value="&quot;${IDF_PATH}/components/bt/include&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${IDF_PATH}/components/ulp/include&quot;"/>
 									<listOptionValue builtIn="false" value="../main/components"/>
+									<listOptionValue builtIn="false" value="/Users/fap/esp/esp-idf/components/esp_ringbuf/include"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.dialect.std.1103198205" name="Language standard" superClass="gnu.cpp.compiler.option.dialect.std" useByScannerDiscovery="true" value="gnu.cpp.compiler.dialect.default" valueType="enumerated"/>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.542855340" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
@@ -110,6 +112,7 @@
 									<listOptionValue builtIn="false" value="&quot;${IDF_PATH}/components/bt/include&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${IDF_PATH}/components/ulp/include&quot;"/>
 									<listOptionValue builtIn="false" value="../main/components"/>
+									<listOptionValue builtIn="false" value="/Users/fap/esp/esp-idf/components/esp_ringbuf/include"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.assembler.input.1790605137" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
 							</tool>
@@ -164,6 +167,7 @@
 									<listOptionValue builtIn="false" value="&quot;${IDF_PATH}/components/bt/include&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${IDF_PATH}/components/ulp/include&quot;"/>
 									<listOptionValue builtIn="false" value="../main/components"/>
+									<listOptionValue builtIn="false" value="/Users/fap/esp/esp-idf/components/esp_ringbuf/include"/>
 								</option>
 								<option id="gnu.c.compiler.option.dialect.std.1277724561" name="Language standard" superClass="gnu.c.compiler.option.dialect.std" useByScannerDiscovery="true" value="gnu.c.compiler.dialect.default" valueType="enumerated"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.1025939745" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
@@ -193,6 +197,7 @@
 									<listOptionValue builtIn="false" value="&quot;${IDF_PATH}/components/bt/include&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${IDF_PATH}/components/ulp/include&quot;"/>
 									<listOptionValue builtIn="false" value="../main/components"/>
+									<listOptionValue builtIn="false" value="/Users/fap/esp/esp-idf/components/esp_ringbuf/include"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.dialect.std.1638220218" name="Language standard" superClass="gnu.cpp.compiler.option.dialect.std" useByScannerDiscovery="true" value="gnu.cpp.compiler.dialect.default" valueType="enumerated"/>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.2013084926" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
@@ -228,6 +233,7 @@
 									<listOptionValue builtIn="false" value="&quot;${IDF_PATH}/components/bt/include&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${IDF_PATH}/components/ulp/include&quot;"/>
 									<listOptionValue builtIn="false" value="../main/components"/>
+									<listOptionValue builtIn="false" value="/Users/fap/esp/esp-idf/components/esp_ringbuf/include"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.assembler.input.1309809971" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
 							</tool>

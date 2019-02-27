@@ -10,8 +10,8 @@
 
 #include "driver/gpio.h"
 
-#define VERSION "0.0"
-#define APPLICATIONNAME "appLoader"
+#define VERSION "0.1"
+#define APPLICATIONNAME "weatherstation"
 
 #define DATA_PARTITION_NAME "nvs"
 #define DEVICE_PARTITION_NAME "appldata"
@@ -26,8 +26,8 @@
 #define SENSOR_I2CSDA	PIN_I2C_1_SDA
 #define SENSOR_I2CSCL	PIN_I2C_1_SCL
 
-#define WINDGAUGE_PULSE_PIN	PIN_DIG_2
-#define TEMPHUMIDITY_PIN	PIN_DIG_3
+#define WINDGAUGE_PULSE_PIN	PIN_ADC_15
+#define TEMPHUMIDITY_PIN	PIN_ADC_4
 #define RAINGAUGE_PULSE_PIN	PIN_ADC_0
 
 

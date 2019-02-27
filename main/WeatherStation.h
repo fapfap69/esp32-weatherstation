@@ -11,7 +11,8 @@
 #include "appConfig.h"
 #include "lib/Barometer/Barometer.h"
 #include "lib/counter/counter.h"
-#include "lib/DHThumidity/DHThumidity.h"
+#include "lib/DHT22/DHT.hpp"
+//#include "lib/DHThumidity/DHThumidity.h"
 #include "lib/i2c/i2c.h"
 #include "lib/mQttClient/mQttClient.h"
 #include "lib/MLX90393/MLX90393.h"
@@ -46,7 +47,8 @@ public:
 		I2Cmaster *i2c;
 
 		MLX90393 *Directiongauge;
-		DHThumidity *Termogauge;
+		//DHThumidity *Termogauge;
+		DHT *Termogauge;
 		Barometer *Barometergauge;
 
 	} theStation;

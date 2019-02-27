@@ -94,6 +94,8 @@ esp_mqtt_client_handle_t mQttClient::client = NULL;
 
 char mQttClient::brokerUri[BROKER_NAME_LEN+1] = DEF_MQTT_BROKER_URL;
 char mQttClient::baseName[STATION_NAME_LEN+1] = DEF_MQTT_STATION_NAME;
+char mQttClient::user[BROKER_NAME_LEN+1] = DEF_MQTT_USER;
+char mQttClient::passwd[BROKER_NAME_LEN+1] = DEF_MQTT_PASSWD;
 
 TickType_t mQttClient::xTicksToWait = MQTT_TIMEOUT_MILLISEC / portTICK_PERIOD_MS;
 mQttClient *mQttClient::inst_ = NULL;   // The one, single instance
@@ -142,6 +144,12 @@ void mQttClient::setDeviceName(const char* aName)
 	return;
 }
 
+void mQttClient::setUserAccount(const char* aUser, const char *aPassw)
+{
+	strncpy(user,aUser, BROKER_NAME_LEN);
+	strncpy(passwd,aPassw, BROKER_NAME_LEN);
+	return;
+}
 
 void mQttClient::Stop()
 {
@@ -166,8 +174,8 @@ void mQttClient::init()
 	// .port
 	// .cert_pem(const char *)
     // .user_context = (void *)your_context
-	// .username
-	// .password
+	mqtt_cfg.username = user;
+	mqtt_cfg.password = passwd;
     Start = true;
 	client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_start(client);

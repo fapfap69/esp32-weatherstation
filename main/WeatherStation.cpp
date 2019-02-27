@@ -30,7 +30,8 @@
 #include "lib/Barometer/Barometer.h"
 #include "lib/Blinker/Blinker.h"
 #include "lib/counter/counter.h"
-#include "lib/DHThumidity/DHThumidity.h"
+//#include "lib/DHThumidity/DHThumidity.h"
+#include "lib/DHT22/DHT.hpp"
 #include "lib/i2c/i2c.h"
 #include "lib/MLX90393/MLX90393.h"
 #include "lib/NVS/NVS.h"
@@ -50,6 +51,8 @@ WeatherStation::~WeatherStation() {
 
 bool WeatherStation::initStation()
 {
+	mQtt = mQttClient::getInstance();
+
 	isAquire = false;
 	tempIsCelsius = TEMPERATURE_IS_CELSIUS;
 
@@ -58,9 +61,15 @@ bool WeatherStation::initStation()
 	theStation.Windgauge->setFilter(true, 120);
 	theStation.Windgauge->pause();
 
-	theStation.Termogauge = new DHThumidity();
+//	theStation.Termogauge = new DHThumidity();
+	theStation.Termogauge = new DHT();
+	theStation.Termogauge->Setup(DHT_TYPE22, GPIO_NUM_23);
 
 	theStation.i2c = new I2Cmaster(SENSOR_I2CDEV, PIN_I2C_1_SDA, PIN_I2C_1_SCL);
+	if( theStation.i2c->init() != ESP_OK) {
+		ESP_LOGE(TAG, "Error to create i2c driver !");
+	}
+
 	theStation.Barometergauge = new Barometer(theStation.i2c);
 	theStation.Directiongauge = new MLX90393(theStation.i2c);
 
@@ -74,16 +83,18 @@ void WeatherStation::everyTenMinutesTask(void *cx)
 	ESP_LOGD(TAG, "Start the 10 minutes Task... %d", ws->isAquire);
 
 
+
 	// SetUp the counter foer WindSpeed
 	/*
 	time_t startWindAquire;
 	startWindAquire = time (NULL);
 	ws->theStation.Windgauge->start(); // clear the counter
 	ws->theStation.Windgauge->resume(); // start counting
-
+*/
 	// Read the Humidity & Temperature
-	ws->theStation.Termogauge->PowerOn(TEMPHUMIDITY_PIN,DHT22);
-	ws->theStation.Termogauge->readHumidity();
+	//ws->theStation.Termogauge->PowerOn(GPIO_NUM_23,DHT22);
+	//ws->theStation.Termogauge->PowerOn(TEMPHUMIDITY_PIN,DHT22);
+	//ws->theStation.Termogauge->readHumidity();
 
 	ws->MeteoValues.Humidity = ws->theStation.Termogauge->getHumidity();
 	ws->MeteoValues.Temperature = ws->theStation.Termogauge->getTemperature(ws->tempIsCelsius);
@@ -91,10 +102,10 @@ void WeatherStation::everyTenMinutesTask(void *cx)
 
 	// Read Pressure
 	ws->theStation.Barometergauge->calibration();
-	ws->theStation.Barometergauge->setBaseQuota(WEATERSTATION_ALTITUDE);
+	ws->theStation.Barometergauge->setBaseQuota(1320);//WEATERSTATION_ALTITUDE);
 	ws->theStation.Barometergauge->readPressure();
 	ws->MeteoValues.Pressure = ws->theStation.Barometergauge->getPressureSL();
-
+/*
 	// calculate the Wind direction
 	ws->theStation.Directiongauge->init(0x5c);
 	ws->theStation.Directiongauge->setGainSel(0x05);
@@ -133,7 +144,9 @@ void WeatherStation::everyTenMinutesTask(void *cx)
 	timeinfo = localtime (&rawtime);
     strftime (ws->MeteoValues.TimeStamp,60,"%c",timeinfo);
 
-    vTaskDelay(3000 / portTICK_PERIOD_MS);
+    vTaskDelay(8000 / portTICK_PERIOD_MS);
+
+
     ws->pubValues();
 
     ws->isAquire = false;
@@ -154,8 +167,8 @@ bool WeatherStation::pubValues()
 	EventBits_t ConBit = 0;
 	uint16_t TimeOut = 20000;
 
-	ESP_LOGD(TAG, "Publication of Meteo values ... ");
-    while(ConBit != mQttClient::MQTTCONNECTED) {
+	ESP_LOGD(TAG, "Publication of Meteo values ... %d ", TimeOut);
+	while((ConBit & mQttClient::MQTTCONNECTED) != mQttClient::MQTTCONNECTED) {
     	ConBit = xEventGroupWaitBits(mQtt->mqttEG,mQttClient::MQTTCONNECTED, false, true, 250 / portTICK_PERIOD_MS);
     	if(--TimeOut == 0) {
     		ESP_LOGE(TAG, "Time Out to connect the mQtt broker. Abort ! ");

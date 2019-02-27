@@ -10,7 +10,7 @@
 
 #include "driver/gpio.h"
 
-#define WIFI_SSD	"AppleFap"
+#define WIFI_SSD	"OgiggiaNet"
 #define WIFI_PASSWORD	"PaperinO"
 #define WIFI_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
 
@@ -25,7 +25,7 @@
 
 #define TEMPERATURE_IS_CELSIUS true
 
-#define MQTTCL_BROKER_URL	"mqtt://172.20.42.42:1883"
+#define MQTTCL_BROKER_URL	"mqtt://192.168.178.127:1883"
 #define MQTTCL_STATION_NAME	"Test"
 
 

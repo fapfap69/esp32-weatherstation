@@ -198,9 +198,10 @@ void app_main()
     // Set Up the mQtt
     mQttClient 	  *mQtt = mQttClient::getInstance();
     if( nvs->rStr_Dev("mqtt_broker_uri",buf,MQTTCL_LEN_BROKER) != ESP_OK ) strncpy(buf,MQTTCL_BROKER_URL,MQTTCL_LEN_BROKER);
-    mQtt->setBrokerUri("mqtt://192.168.178.26:1883");//buf);
+    mQtt->setBrokerUri("mqtt://192.168.1.127:1883");//buf);
     if( nvs->rStr_Dev("device_name",buf,MQTTCL_LEN_STATION) != ESP_OK ) strncpy(buf,MQTTCL_STATION_NAME,MQTTCL_LEN_STATION);
     mQtt->setDeviceName("Test");//buf);
+    mQtt->setUserAccount("fap","Baione01");
     mQtt->init();
 
     // Set Up the Weather Station

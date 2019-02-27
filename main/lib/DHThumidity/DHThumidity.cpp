@@ -35,9 +35,10 @@ void DHThumidity::PowerOn(gpio_num_t pin, int type) {
 	sensor.PinNumber = pin;
 	sensor.Type = (uint8_t)type;
 	first = true;
-	//esp_err_t err;
-	//err = gpio_set_direction(pin, GPIO_MODE_INPUT);
-	//err = gpio_set_level(pin, 1);
+	esp_err_t err;
+	err = gpio_set_direction(pin, GPIO_MODE_OUTPUT);
+	err = gpio_set_pull_mode(pin, GPIO_PULLUP_ONLY);
+	err = gpio_set_level(pin, 1);
 	lastReadTime = 0;
 	return;
 }
@@ -196,68 +197,113 @@ bool DHThumidity::readSensor()
 	int uSec = 0;
 	uint8_t byteInx = 0;
 	uint8_t bitInx = 7;
+	esp_err_t err;
 
 	// clean the buffer
 	for (int k = 0; k<MAXdhtData; k++) dataBuffer[k] = 0;
 
 	// Send start signal to DHT sensor
-	gpio_set_direction( sensor.PinNumber, GPIO_MODE_OUTPUT );
+//	err = gpio_set_pull_mode(sensor.PinNumber, GPIO_PULLUP_ONLY);
+//	gpio_set_level( sensor.PinNumber, 1 ); //
+//	ets_delay_us( 250000 );
 	gpio_set_level( sensor.PinNumber, 0 ); // pull down for 3 ms for a smooth and nice wake up
+	gpio_set_direction( sensor.PinNumber, GPIO_MODE_OUTPUT );
 	ets_delay_us( 3000 );
+	gpio_set_direction( sensor.PinNumber, GPIO_MODE_INPUT );		// change to input mode
 	gpio_set_level( sensor.PinNumber, 1 ); // pull up for 25 us for a gentile asking for data
-	ets_delay_us( 25 );
+//	ets_delay_us( 43 );
+//	gpio_set_level( sensor.PinNumber, 0 );
 
 	//  DHT will keep the line low for 80 us and then high for 80us
-	gpio_set_direction( sensor.PinNumber, GPIO_MODE_INPUT );		// change to input mode
-	uSec = getSignalLevel( 85, 0 );
-	if( uSec<0 ) {
-		blkLed->SetPat(BKS_ERROR_SENS);
-		errorCode = DHT_TIMEOUT_ERROR;
-		return false;
-	}
-	uSec = getSignalLevel( 85, 1 );
-	if( uSec<0 ) {
-		blkLed->SetPat(BKS_ERROR_SENS);
-		errorCode = DHT_TIMEOUT_ERROR;
-		return false;
-	}
+//	ets_delay_us( 10 );
 
-	// Read the 40 data bits
-	for( int k = 0; k < 40; k++ ) {
-		uSec = getSignalLevel( 56, 0 ); // -- starts new data transmission with >50us low signal
-		if( uSec<0 ) {
-			blkLed->SetPat(BKS_ERROR_SENS);
-			errorCode = DHT_TIMEOUT_ERROR;
-			return false;
+	int usTimeOut = 2000;
+	int samples = 3+40*2;
+	int duration[85];
+	int s = 0;
+	int state = 1;
+	duration[s] = 0;
+
+	vTaskSuspendAll();
+	while(s<samples && duration[s] < usTimeOut) {
+		while( gpio_get_level(sensor.PinNumber)==state && duration[s] < usTimeOut ) {
+			++duration[s];
+			ets_delay_us(1);		// uSec delay
 		}
-		uSec = getSignalLevel( 75, 1 ); // -- check to see if after >70us rx data is a 0 or a 1
-		if( uSec<0 ) {
-			blkLed->SetPat(BKS_ERROR_SENS);
-			errorCode = DHT_TIMEOUT_ERROR;
-			return false;
-		}
-		if (uSec > 40) { // add the current read to the output data
+		state = (state == 0) ? 1:0;
+		s++;
+		duration[s] = 0;
+	}
+	xTaskResumeAll();
+
+	printf( "Prima terna  H=%d L=%d H=%d \n", duration[0], duration[1],duration[2]);
+	for(int i=3;i<83; i += 2) {
+		if (duration[i+1] > 40) { // add the current read to the output data
 			dataBuffer[ byteInx ] |= (1 << bitInx);
 		}
 		// move the pointers
 		if (bitInx == 0) { bitInx = 7; ++byteInx; }
 		else bitInx--;
+		printf( "0=%d 1=%d, ",duration[i],duration[i+1] );
 	}
-
-	// Checksum is the sum of Data 8 bits masked out 0xFF
-	if (dataBuffer[4] == ((dataBuffer[0] + dataBuffer[1] + dataBuffer[2] + dataBuffer[3]) & 0xFF)) {
-		time(&lastReadTime);
-		return true;
-	} else {
+/*
+	errorCode = DHT_OK;
+	uSec = getSignalLevel( 85, 0 );
+	if( uSec<0 ) {
 		blkLed->SetPat(BKS_ERROR_SENS);
-		errorCode = DHT_CHECKSUM_ERROR;
-		return false;
+		errorCode = DHT_TIMEOUT_ERROR;
+		printf("p1\n");
+	} else {
+		uSec = getSignalLevel( 85, 1 );
+		if( uSec<0 ) {
+			blkLed->SetPat(BKS_ERROR_SENS);
+			errorCode = DHT_TIMEOUT_ERROR;
+			printf("p2\n");
+		} else {
+			// Read the 40 data bits
+			for( int k = 0; k < 40; k++ ) {
+				uSec = getSignalLevel( 60, 0 ); // -- starts new data transmission with >50us low signal
+				if( uSec<0 ) {
+					blkLed->SetPat(BKS_ERROR_SENS);
+					errorCode = DHT_TIMEOUT_ERROR;
+					printf("p3\n");
+					break;
+				}
+				uSec = getSignalLevel( 90, 1 ); // -- check to see if after >70us rx data is a 0 or a 1
+				if( uSec<0 ) {
+					blkLed->SetPat(BKS_ERROR_SENS);
+					errorCode = DHT_TIMEOUT_ERROR;
+					printf("p4 %d\n",k);
+					break;
+				}
+				if (uSec > 40) { // add the current read to the output data
+					dataBuffer[ byteInx ] |= (1 << bitInx);
+				}
+				// move the pointers
+				if (bitInx == 0) { bitInx = 7; ++byteInx; }
+				else bitInx--;
+			}
+		}
 	}
-
+//	xTaskResumeAll();
+*/
+	printf("Check sum %d -> %d\n",dataBuffer[4], ((dataBuffer[0] + dataBuffer[1] + dataBuffer[2] + dataBuffer[3]) & 0xFF));
+	if (errorCode == DHT_OK) {
+		// Checksum is the sum of Data 8 bits masked out 0xFF
+		if (dataBuffer[4] == ((dataBuffer[0] + dataBuffer[1] + dataBuffer[2] + dataBuffer[3]) & 0xFF)) {
+			time(&lastReadTime);
+		} else {
+			blkLed->SetPat(BKS_ERROR_SENS);
+			errorCode = DHT_CHECKSUM_ERROR;
+			printf("p5\n");
+		}
+	}
 	// Switch Off
 	gpio_set_direction( sensor.PinNumber, GPIO_MODE_OUTPUT );
-	gpio_set_level( sensor.PinNumber, 0 ); // pull down for 3 ms for a smooth and nice wake up
+//	gpio_set_level( sensor.PinNumber, 0 ); // pull down for 3 ms for a smooth and nice wake up
+//	ets_delay_us( 3 );
+	gpio_set_level( sensor.PinNumber, 1 ); // pull down for 3 ms for a smooth and nice wake up
 
-	blkLed->SetPat(BKS_ERROR_SENS);
-	return DHT_CHECKSUM_ERROR;
+//	blkLed->SetPat(BKS_ERROR_SENS);
+	return errorCode;
 }

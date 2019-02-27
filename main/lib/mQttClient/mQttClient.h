@@ -10,7 +10,8 @@
 
 #define DEF_MQTT_BROKER_URL		"mqtt://127.0.0.1:1883"
 #define DEF_MQTT_STATION_NAME	"test"
-
+#define DEF_MQTT_USER			"fap"
+#define DEF_MQTT_PASSWD			"Baione01"
 #define BROKER_NAME_LEN	127
 #define STATION_NAME_LEN 63
 #define ITEM_NAME_LEN 256
@@ -109,6 +110,8 @@ private:
 	static esp_mqtt_client_handle_t client;
 	static int publishedMessageId;
 	static int subscribedMessageId;
+	static char user[BROKER_NAME_LEN+1];
+	static char passwd[BROKER_NAME_LEN+1];
 
 	static TickType_t xTicksToWait;
 	static mQttClient* inst_;   // The one, single instance
@@ -121,6 +124,7 @@ public:
 	void setBrokerUri(const char* aUri);
 	char *getDeviceName();
 	void setDeviceName(const char* aName);
+	void setUserAccount(const char* aUser, const char *aPassw);
 	int getQoS() { return QoS; };
 	void setQoS(int aQoS) { QoS = aQoS; return; };
 	bool getRetained() { return Retain; };

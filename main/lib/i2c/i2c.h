@@ -17,6 +17,8 @@
 //#define I2C_DEFAULT_MASTER_SCL_IO          19               /*!< gpio number for I2C master clock */
 //#define I2C_DEFAULT_MASTER_SDA_IO          18               /*!< gpio number for I2C master data  */
 //#define I2C_DEFAULT_MASTER_NUM             I2C_NUM_1        /*!< I2C port number for master dev */
+#define I2C_MASTER_TX_BUF_DISABLE 0                           /*!< I2C master doesn't need buffer */
+#define I2C_MASTER_RX_BUF_DISABLE 0                           /*!< I2C master doesn't need buffer */
 #define I2C_SLAVE_RX_BUF_DIMENSION  250                /*!< I2C master do not need buffer */
 #define I2C_SLAVE_TX_BUF_DIMENSION  250                /*!< I2C master do not need buffer */
 #define I2C_MASTER_FREQ_HZ         100000           /*!< I2C master clock frequency */
@@ -45,9 +47,8 @@ class I2Cdevice
     void setTimeout(int timeoutTick);
     int getTimeout();
     void setEndian(bool isBigEndian);
+    virtual esp_err_t init() {return(ESP_OK);};
   private:
-    virtual void setup(i2c_port_t i2cNum, gpio_num_t signalGPIO, gpio_num_t clockGPIO) {return;};
-    virtual void init() {return;};
 };
 
 class I2Cmaster : public I2Cdevice
@@ -61,9 +62,8 @@ class I2Cmaster : public I2Cdevice
     ~I2Cmaster();
     esp_err_t write(uint8_t address, uint8_t* data_wr, size_t size);
     esp_err_t read(uint8_t address, uint8_t* data_rd, size_t size);
+    esp_err_t init();
   private:
-    void setup(i2c_port_t i2cNum, gpio_num_t signalGPIO, gpio_num_t clockGPIO);
-    void init();
 };
 
 class I2Cslave : public I2Cdevice
@@ -81,9 +81,8 @@ class I2Cslave : public I2Cdevice
     void setBufferDim(size_t rxBufferSize, size_t txBufferSize);
     esp_err_t write(uint8_t* data_wr, size_t size);
     size_t read(uint8_t* data_rd, size_t maxSize);
+    esp_err_t init();
   private:
-    void setup(i2c_port_t i2cNum, gpio_num_t signalGPIO, gpio_num_t clockGPIO);
-    void init();
 };
 
 #endif

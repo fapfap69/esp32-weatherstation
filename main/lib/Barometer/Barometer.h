@@ -21,17 +21,17 @@ Ver. 0.1
 #define RequestTemperature 0x2E
 
 struct Parameters {
-	int ac1;
-	int ac2;
-	int ac3;
-	unsigned int ac4;
-	unsigned int ac5;
-	unsigned int ac6;
-	int b1;
-	int b2;
-	int mb;
-	int mc;
-	int md;
+	int16_t ac1;
+	int16_t ac2;
+	int16_t ac3;
+	uint16_t ac4;
+	uint16_t ac5;
+	uint16_t ac6;
+	int16_t b1;
+	int16_t b2;
+	int16_t mb;
+	int16_t mc;
+	int16_t md;
 	long b5;
 };
 
@@ -60,8 +60,8 @@ class Barometer
 	double calculateTemperature();
 	int readTemperatureUnc();
 	int readIntFrom(uint8_t address);
-	void writeTo(uint8_t address, uint8_t val);
-	void readFrom(uint8_t address, int num, uint8_t _buff[]);
+	esp_err_t writeTo(uint8_t address, uint8_t val);
+	esp_err_t readFrom(uint8_t address, int num, uint8_t _buff[]);
 	double calculateAltitude(double pressure);
 	I2Cmaster * theI2Cport;
 

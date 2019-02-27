@@ -1,4 +1,5 @@
 #include "i2c.h"
+#include "esp_log.h"
 
 I2Cdevice::I2Cdevice(i2c_port_t i2cNum, gpio_num_t signalGPIO, gpio_num_t clockGPIO)
 {
@@ -8,8 +9,10 @@ I2Cdevice::I2Cdevice(i2c_port_t i2cNum, gpio_num_t signalGPIO, gpio_num_t clockG
   conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
   conf.scl_io_num = clockGPIO;
   conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
-   // call the specific settings for derivate classes
-  setup(i2cNum, signalGPIO, clockGPIO);
+
+  ESP_LOGD("i2c", "Set i2c %d %d %d",i2cNum, signalGPIO, clockGPIO);
+// call the specific settings for derivate classes
+//  setup(i2cNum, signalGPIO, clockGPIO);
 }
 I2Cdevice::~I2Cdevice()
 {
@@ -55,48 +58,48 @@ I2Cmaster::I2Cmaster(i2c_port_t i2cNum):I2Cdevice(i2cNum, I2C_DEFAULT_SCL_IO, I2
 I2Cmaster::I2Cmaster(i2c_port_t i2cNum, gpio_num_t signalGPIO, gpio_num_t clockGPIO):I2Cdevice(i2cNum, signalGPIO, clockGPIO) {};
 I2Cmaster::~I2Cmaster() {};
 
-void I2Cmaster::setup(i2c_port_t i2cNum, gpio_num_t signalGPIO, gpio_num_t clockGPIO)
-{
-  conf.mode = I2C_MODE_MASTER;
-  conf.master.clk_speed = I2C_MASTER_FREQ_HZ;
-  return;
-}
-
-void I2Cmaster::init()
+esp_err_t I2Cmaster::init()
 {
   //reset();
+  ESP_LOGD("i2c", "Init the driver");
+  conf.mode = I2C_MODE_MASTER;
+  conf.master.clk_speed = I2C_MASTER_FREQ_HZ;
   i2c_param_config(i2c_port, &conf);
-  return;
+  return(i2c_driver_install(i2c_port, conf.mode,I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0));
 }
 
 esp_err_t I2Cmaster::write(uint8_t address, uint8_t* data_wr, size_t size)
 {
+	esp_err_t err;
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, ( address << 1 ) | WRITE_BIT, ACK_CHECK_EN);
-    i2c_master_write(cmd, data_wr, size, ACK_CHECK_EN);
-    i2c_master_stop(cmd);
-    esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, 1000 / portTICK_RATE_MS);
+    err = i2c_master_start(cmd);
+    err = i2c_master_write_byte(cmd, ( address << 1 ) | WRITE_BIT, ACK_CHECK_EN);
+    err = i2c_master_write(cmd, data_wr, size, ACK_CHECK_EN);
+    err = i2c_master_stop(cmd);
+    err = i2c_master_cmd_begin(i2c_port, cmd, 1000 / portTICK_RATE_MS);
     i2c_cmd_link_delete(cmd);
-    return ret;
+    ESP_LOGD("i2c", "Exit to write with %d", err);
+    return err;
 }
 
 esp_err_t I2Cmaster::read(uint8_t address, uint8_t* data_rd, size_t size)
 {
-  if (size == 0) {
-    return ESP_OK;
-  }
-  i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-  i2c_master_start(cmd);
-  i2c_master_write_byte(cmd, ( address << 1 ) | READ_BIT, ACK_CHECK_EN);
-  if (size > 1) {
-    i2c_master_read(cmd, data_rd, size - 1, (i2c_ack_type_t)ACK_VAL);
-  }
-  i2c_master_read_byte(cmd, data_rd + size - 1, (i2c_ack_type_t)NACK_VAL);
-  i2c_master_stop(cmd);
-  esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, 1000 / portTICK_RATE_MS);
-  i2c_cmd_link_delete(cmd);
-  return ret;
+	esp_err_t err;
+	if (size == 0) {
+		return ESP_OK;
+	}
+	i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+	err = i2c_master_start(cmd);
+   	err = i2c_master_write_byte(cmd, ( address << 1 ) | READ_BIT, ACK_CHECK_EN);
+	if (size > 1) {
+		err = i2c_master_read(cmd, data_rd, size - 1, (i2c_ack_type_t)ACK_VAL);
+	}
+	err = i2c_master_read_byte(cmd, data_rd + size - 1, (i2c_ack_type_t)NACK_VAL);
+	err = i2c_master_stop(cmd);
+	err = i2c_master_cmd_begin(i2c_port, cmd, 1000 / portTICK_RATE_MS);
+	i2c_cmd_link_delete(cmd);
+    ESP_LOGD("i2c", "Exit to read with %d", err);
+    return err;
 }
 
 // -------------------------------------
@@ -107,21 +110,15 @@ I2Cslave::~I2Cslave()
 {
 }
 
-void I2Cslave::setup(i2c_port_t i2cNum, gpio_num_t signalGPIO, gpio_num_t clockGPIO)
+esp_err_t I2Cslave::init()
 {
   rxBufferDim = I2C_SLAVE_RX_BUF_DIMENSION;
   txBufferDim = I2C_SLAVE_TX_BUF_DIMENSION;
   conf.mode = I2C_MODE_SLAVE;
   conf.slave.addr_10bit_en = I2C_ADDR_BIT_7; // I2C_ADDR_BIT_10
   conf.slave.slave_addr = 0x00;
-  return;
-}
-
-void I2Cslave::init()
-{
   i2c_param_config(i2c_port, &conf);
-  i2c_driver_install(i2c_port, conf.mode,rxBufferDim,txBufferDim, 0);
-  return;
+  return(i2c_driver_install(i2c_port, conf.mode,rxBufferDim,txBufferDim, 0));
 }
 
 void I2Cslave::setAddress(uint8_t address)

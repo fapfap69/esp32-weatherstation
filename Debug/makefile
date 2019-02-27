@@ -20,6 +20,7 @@ RM := rm -rf
 -include main/lib/MLX90393/subdir.mk
 -include main/lib/GeneralUtils/subdir.mk
 -include main/lib/DHThumidity/subdir.mk
+-include main/lib/DHT22/subdir.mk
 -include main/lib/Blinker/subdir.mk
 -include main/lib/Barometer/subdir.mk
 -include main/lib/Adafruit_GFX/fontconvert/subdir.mk
