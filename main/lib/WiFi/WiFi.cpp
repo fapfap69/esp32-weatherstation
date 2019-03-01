@@ -154,7 +154,7 @@ esp_err_t WiFi::configure() {
 		blkLed->SetPat(BKS_ERROR_WIFI);
 		return(errRc);
 	}
-	wifi_config_t sta_config;
+	wifi_config_t sta_config = {0};
 	::memset(&sta_config, 0, sizeof(sta_config));
 	::memcpy(sta_config.sta.ssid, m_ssid.data(), m_ssid.size());
 	::memcpy(sta_config.sta.password, m_passwd.data(), m_passwd.size());

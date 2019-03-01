@@ -12,5 +12,9 @@ station_tz_s,data,string,CET-1CEST,M3.5.0/2,M10.5.0/3
 station_long,data,string,1.54
 station_lat,data,string,41.5
 station_alt,data,string,350.4
-mqtt_broker_uri,data,string,mqtt://192.168.178.127:1883
+mqtt_broker_uri,data,string,mqtt://faprasp:1883
+mqtt_broker_uri2,data,string,mqtt://192.168.1.127:1883
+mqtt_broker_username,data,string,fap
+mqtt_broker_password,data,string,Baione01
+
 

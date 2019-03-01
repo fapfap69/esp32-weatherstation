@@ -16,6 +16,6 @@ ULP_EXP_DEP_OBJECTS := main.o
 include $(IDF_PATH)/components/ulp/component_ulp_common.mk
 
 COMPONENT_SRCDIRS := . lib/Adafruit_GFX lib/Blinker lib/Barometer lib/counter \
-					lib/DHThumidity lib/i2c lib/MLX90393 lib/mQttClient \
+					lib/HWDelay lib/i2c lib/MLX90393 lib/mQttClient \
 					lib/NVS lib/sntp lib/SSD1306 lib/UpdateFirmware \
 					lib/WiFi lib/GeneralUtils lib/DHT22 lib

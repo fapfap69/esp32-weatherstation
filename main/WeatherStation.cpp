@@ -82,8 +82,6 @@ void WeatherStation::everyTenMinutesTask(void *cx)
 	ws->isAquire = true;
 	ESP_LOGD(TAG, "Start the 10 minutes Task... %d", ws->isAquire);
 
-
-
 	// SetUp the counter foer WindSpeed
 	/*
 	time_t startWindAquire;
@@ -102,7 +100,7 @@ void WeatherStation::everyTenMinutesTask(void *cx)
 
 	// Read Pressure
 	ws->theStation.Barometergauge->calibration();
-	ws->theStation.Barometergauge->setBaseQuota(1320);//WEATERSTATION_ALTITUDE);
+	ws->theStation.Barometergauge->setBaseQuota(20);//WEATERSTATION_ALTITUDE);
 	ws->theStation.Barometergauge->readPressure();
 	ws->MeteoValues.Pressure = ws->theStation.Barometergauge->getPressureSL();
 /*
@@ -145,7 +143,6 @@ void WeatherStation::everyTenMinutesTask(void *cx)
     strftime (ws->MeteoValues.TimeStamp,60,"%c",timeinfo);
 
     vTaskDelay(8000 / portTICK_PERIOD_MS);
-
 
     ws->pubValues();
 

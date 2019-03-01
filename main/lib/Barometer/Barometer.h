@@ -14,11 +14,17 @@ Ver. 0.1
 #include "../i2c/i2c.h"
 
 // Barometer based on BMP085
+#define TAG "BAROMETER"
 
 #define WRITEREGISTER_ADD 0xF4
 #define TEMPERATUREREGISTER_ADD 0xF6
+#define PRESSUREREGISTER1_ADD 0xF6
+#define PRESSUREREGISTER2_ADD 0xF7
+#define PRESSUREREGISTER3_ADD 0xF8
 
-#define RequestTemperature 0x2E
+
+#define REQUESTTEMPERATURE 0x2E
+#define REQUESTPRESSURE 0x2E
 
 struct Parameters {
 	int16_t ac1;

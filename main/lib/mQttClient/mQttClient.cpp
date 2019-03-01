@@ -171,16 +171,32 @@ void mQttClient::init()
 {
 	mqtt_cfg.uri = brokerUri;
 	mqtt_cfg.event_handle = mqtt_event_handler;
-	// .port
-	// .cert_pem(const char *)
-    // .user_context = (void *)your_context
+    // .host;                       /*!< MQTT server domain (ipv4 as string) */
+    // .port;                          /*!< MQTT server port uint32_t */
+    // .cert_pem;                   /*!< Pointer to certificate data in PEM format for server verify (with SSL), default is NULL, not required to verify the server */
+    // .client_cert_pem;            /*!< Pointer to certificate data in PEM format for SSL mutual authentication, default is NULL, not required if mutual authentication is not needed. If it is not NULL, also `client_key_pem` has to be provided. */
+    // .client_key_pem;             /*!< Pointer to private key data in PEM format for SSL mutual authentication, default is NULL, not required if mutual authentication is not needed. If it is not NULL, also `client_cert_pem` has to be provided. */
+    // .client_id;                  /*!< default client id is ``ESP32_%CHIPID%`` where %CHIPID% are last 3 bytes of MAC address in hex format */
 	mqtt_cfg.username = user;
 	mqtt_cfg.password = passwd;
+	mqtt_cfg.refresh_connection_after_ms = MQTT_REFRESH_MILLISEC;
+    // .lwt_topic;                  /*!< LWT (Last Will and Testament) message topic (NULL by default) */
+    // .lwt_msg;                    /*!< LWT message (NULL by default) */
+    // .lwt_qos;                            /*!< LWT message qos */
+    // .lwt_retain;                         /*!< LWT retained message flag */
+    // .lwt_msg_len;                        /*!< LWT message length */
+    // .disable_clean_session;              /*!< mqtt clean session, default clean_session is true */
+	mqtt_cfg.keepalive = MQTT_KEEPALIVE_SEC;  /*!< mqtt keepalive, default is 120 seconds */
+    // .disable_auto_reconnect;            /*!< this mqtt client will reconnect to server (when errors/disconnect). Set disable_auto_reconnect=true to disable */
+    // .user_context;                     /*!< pass user context to this option, then can receive that context in ``event->user_context`` */
+    // .task_prio;                          /*!< MQTT task priority, default is 5, can be changed in ``make menuconfig`` */
+    // .task_stack;                         /*!< MQTT task stack size, default is 6144 bytes, can be changed in ``make menuconfig`` */
+    // .buffer_size;                        /*!< size of MQTT send/receive buffer, default is 1024 */
+
     Start = true;
 	client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_start(client);
     redoSubscriptions();
-
     return;
 }
 
@@ -222,7 +238,7 @@ esp_err_t mQttClient::mqtt_event_handler(esp_mqtt_event_handle_t event)
 
         case MQTT_EVENT_UNSUBSCRIBED:
             ESP_LOGD(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
-            xEventGroupSetBits(mqttEG, MQTTSUBSCRIBE);
+            xEventGroupClearBits(mqttEG, MQTTSUBSCRIBE);
             break;
 
         case MQTT_EVENT_DATA:
@@ -242,6 +258,8 @@ esp_err_t mQttClient::mqtt_event_handler(esp_mqtt_event_handle_t event)
     		ESP_LOGW(TAG, "MQTT_EVENT_RECEICEDATA no Call Back function executed !");
             break;
 
+        case MQTT_EVENT_BEFORE_CONNECT:
+        	break;
     }
     return ESP_OK;
 }
@@ -261,7 +279,7 @@ int mQttClient::Publication(const char* ItemName, const char* Data, int dataLen)
 			strcat(name,ItemName);
 			xEventGroupClearBits(mqttEG, MQTTPUBLISHING);
 			msg_id = esp_mqtt_client_publish(client, name, Data, dataLen, QoS, Retain);
-			uxBits = xEventGroupWaitBits(mqttEG, MQTTCONNECTED | MQTTPUBLISHING , false, true, xTicksToWait);
+			uxBits = xEventGroupWaitBits(mqttEG, MQTTCONNECTED | MQTTPUBLISHING , pdFALSE, pdTRUE, xTicksToWait);
 			if ((uxBits & MQTTPUBLISHING) == MQTTPUBLISHING) {
 				ESP_LOGD(TAG, "sent publish '%s' successful, msg_id=%d",name, msg_id);
 				ESP_LOGD(TAG, "		Data := '%s' ",Data);

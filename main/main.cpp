@@ -186,8 +186,13 @@ void app_main()
     WiFi  *wifi = WiFi::getInstance();
     if( nvs->rStr_Dev("wifi_ssd",buf,WIFI_LEN_SSID) != ESP_OK ) strncpy(buf,WIFI_SSD,WIFI_LEN_SSID);
     if( nvs->rStr_Dev("wifi_passwd",buf1,WIFI_LEN_PASSWORD) != ESP_OK ) strncpy(buf1,WIFI_PASSWORD,WIFI_LEN_PASSWORD);
-    wifi->connectAP(buf, buf1, WIFI_MODE_STA);
 
+    esp_err_t err = !ESP_OK;
+    while( err != ESP_OK) {
+    	err = wifi->connectAP(buf, buf1, WIFI_MODE_STA);
+    	vTaskDelay(1000 / portTICK_PERIOD_MS);
+    	ESP_LOGD(TAG,"Waiting for Net connection..(%s:%s", buf, buf1);
+    }
     // Get the good time
     if( nvs->rStr_Dev("station_tz_s",buf,WIFI_LEN_TZ) != ESP_OK ) strncpy(buf,WEATERSTATION_TZ,WIFI_LEN_TZ);
     obtain_time(wifi, buf);

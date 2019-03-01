@@ -54,7 +54,7 @@ double Barometer::readPressure() {
 	// read the uncalibrated pressure
 	uncompensatedPress = readPressureUnc();
 
-	ESP_LOGD("Baro", "temperature :%f uncPressure %lu ", temperature, uncompensatedPress);
+	ESP_LOGD(TAG, "temperature :%f uncPressure %lu ", temperature, uncompensatedPress);
 	// Compensation
 	b6 = calibParam.b5 - 4000;
 	// Calculate B3
@@ -83,7 +83,7 @@ double Barometer::readPressure() {
 	pressure = (double)p / 100.0;  // hPas conversion
 	pressureSlm = pressure / pow(1-0.0000225577 * baseQuota, 5.25588);
 	altitude = calculateAltitude(pressure);
-	ESP_LOGD("Baro", "temperature :%f Pressure %5.1f ", temperature, pressure);
+	ESP_LOGD(TAG, "temperature :%f Pressure %5.1f ", temperature, pressure);
 
 	return(pressure);
 }
@@ -95,37 +95,33 @@ unsigned long Barometer::readPressureUnc()
 	esp_err_t err;
 	uint8_t buffer[4];
 
-	err = writeTo(WRITEREGISTER_ADD, (0x34 + (OVERSAMPLING<<6)) );
+	err = writeTo(WRITEREGISTER_ADD, (REQUESTPRESSURE + (OVERSAMPLING<<6)) );
 	if(err != ESP_OK) {
-		ESP_LOGE("Baro", "writing to read pressure !");
+		ESP_LOGE(TAG, "writing to read pressure !");
 		return -1;
 	}
 
-	//delay(2 + (3<<OVERSAMPLING));
 	vTaskDelay((2 + (3<<OVERSAMPLING)) / portTICK_RATE_MS);
 
-	err = readFrom(0xF6, 1, &msb);
-//	err = readFrom(0xF6, 3, buffer);
+	err = readFrom(PRESSUREREGISTER1_ADD, 1, &msb);
 	if(err != ESP_OK) {
-		ESP_LOGE("Baro", "Reading pressure 1/3 !");
+		ESP_LOGE(TAG, "Reading pressure 1/3 !");
 		return -1;
 	}
-	err = readFrom(0xF7, 1, &lsb);
+	err = readFrom(PRESSUREREGISTER2_ADD, 1, &lsb);
 	if(err != ESP_OK) {
-		ESP_LOGE("Baro", "Reading pressure 2/3 !");
+		ESP_LOGE(TAG, "Reading pressure 2/3 !");
 		return -1;
 	}
-	err = readFrom(0xF8, 1, &xlsb);
+	err = readFrom(PRESSUREREGISTER3_ADD, 1, &xlsb);
 	if(err != ESP_OK) {
-		ESP_LOGE("Baro", "Reading pressure 3/3 !");
+		ESP_LOGE(TAG, "Reading pressure 3/3 !");
 		return -1;
 	}
 
-	ESP_LOGD("Baro", "Read 3 bytes %02X %02X %02X", msb, lsb, xlsb);
-//	ESP_LOGD("Baro", "Read 3 bytes %02X %02X %02X", buffer[0], buffer[1], buffer[2]);
+	ESP_LOGD(TAG, "Read 3 bytes %02X %02X %02X", msb, lsb, xlsb);
 
 	up = (((unsigned long) msb << 16) | ((unsigned long) lsb << 8) | (unsigned long) xlsb) >> (8-OVERSAMPLING);
-//	up = (((unsigned long) buffer[0] << 16) | ((unsigned long) buffer[1] << 8) | (unsigned long) buffer[2]) >> (8-OVERSAMPLING);
 
 	return up;
 }
@@ -154,7 +150,7 @@ double Barometer::calculateTemperature()
 
 	double temp = ((calibParam.b5 + 8)>>4);
 	temp = temp/10;
-	ESP_LOGD("Baro", "Calculate Temperature %u -> %f", uTemp, temp);
+	ESP_LOGD(TAG, "Calculate Temperature %u -> %f", uTemp, temp);
 	return temp;
 }
 
@@ -163,16 +159,16 @@ int Barometer::readTemperatureUnc()
 	int temp;
 	esp_err_t err;
 
-	err = writeTo(WRITEREGISTER_ADD,RequestTemperature);
+	err = writeTo(WRITEREGISTER_ADD,REQUESTTEMPERATURE);
 	if(err != ESP_OK) {
-		ESP_LOGE("Baro", "writing to read temperature !");
+		ESP_LOGE(TAG, "writing to read temperature !");
 		return -1;
 	}
-	vTaskDelay(6 / portTICK_RATE_MS);
+	vTaskDelay(5 / portTICK_RATE_MS);
 
  	// Read two bytes from registers 0xF6 and 0xF7
 	temp = readIntFrom(TEMPERATUREREGISTER_ADD);
-	ESP_LOGD("Baro", "Read Unc Temperature %d (%04X)", temp, temp);
+	ESP_LOGD(TAG, "Read Unc Temperature %d (%04X)", temp, temp);
 
 	return(temp);
 }
@@ -191,29 +187,25 @@ void Barometer::calibration()
 	calibParam.mb = readIntFrom(0xBA);
 	calibParam.mc = readIntFrom(0xBC);
 	calibParam.md = readIntFrom(0xBE);
-	ESP_LOGD("Baro", "Calibration AC %04X %04X %04X %04X %04X %04X", calibParam.ac1, calibParam.ac2,
+	ESP_LOGD(TAG, "Calibration AC %04X %04X %04X %04X %04X %04X", calibParam.ac1, calibParam.ac2,
 			calibParam.ac3, calibParam.ac4, calibParam.ac5, calibParam.ac6);
-	ESP_LOGD("Baro", "Calibration B %04X %04X ", calibParam.b1, calibParam.b2);
-	ESP_LOGD("Baro", "Calibration M %04X %04X %04X", calibParam.mb, calibParam.mc, calibParam.md);
+	ESP_LOGD(TAG, "Calibration B %04X %04X ", calibParam.b1, calibParam.b2);
+	ESP_LOGD(TAG, "Calibration M %04X %04X %04X", calibParam.mb, calibParam.mc, calibParam.md);
 
-	ESP_LOGD("Baro", "Calibration AC %d %d %d %d %d %d", calibParam.ac1, calibParam.ac2,
+	ESP_LOGD(TAG, "Calibration AC %d %d %d %d %d %d", calibParam.ac1, calibParam.ac2,
 			calibParam.ac3, calibParam.ac4, calibParam.ac5, calibParam.ac6);
-	ESP_LOGD("Baro", "Calibration B %d %d ", calibParam.b1, calibParam.b2);
-	ESP_LOGD("Baro", "Calibration M %d %d %d", calibParam.mb, calibParam.mc, calibParam.md);
+	ESP_LOGD(TAG, "Calibration B %d %d ", calibParam.b1, calibParam.b2);
+	ESP_LOGD(TAG, "Calibration M %d %d %d", calibParam.mb, calibParam.mc, calibParam.md);
 
 	return;
 }
 
 void Barometer::setBaseQuota(int quota) {
-
-//	double p = readPressure(); // hPas
-//	pressureSlm = p / pow(1-0.0000225577 * quota, 5.25588);
 	baseQuota = quota;
 	return;
 }
 
 int Barometer::getBaseQuota() {
-
 	return(baseQuota);
 }
 
@@ -226,12 +218,10 @@ esp_err_t Barometer::writeTo(uint8_t address, uint8_t val) {
 	esp_err_t err;
 	buf[0] = address;
 	buf[1] = val;
-//	err = theI2Cport->write(BMP085_DEVICE, &address, 1);
 	err = theI2Cport->write(BMP085_DEVICE, buf, 2);
 	if(err != ESP_OK) {
 		return err;
 	}
-//	err = theI2Cport->write(BMP085_DEVICE, &val, 1);
 	return err;
 }
 
