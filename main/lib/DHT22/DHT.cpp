@@ -22,7 +22,7 @@ DHT::DHT() :
   _task(nullptr),
   _tipo(0),
   _ringBuf(nullptr) {
-  hwdTim = new HWDelay(1000);
+  hwdTim = HWDelay::getInstance();
 }
 
 
@@ -166,6 +166,10 @@ void DHT::_readSensor() {
 	_status = DHT_ERR_NODATA;
 
 	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // wait for timer notification
+
+    //vTaskDelay(5); // wait for the maximum receive time
+    hwdTim->Delay(5000);
+
 	rmt_item32_t* items = static_cast<rmt_item32_t*>(xRingbufferReceive(_ringBuf, &rx_size, 1000));
 	ESP_LOGD(TAG, "Now we have data. %d Items",(int)rx_size/sizeof(rmt_item32_t));
 	if (items) {
@@ -187,13 +191,11 @@ void DHT::_readSensor() {
 void DHT::_handleTimer(DHT* instance) {
   esp_err_t err;
   rmt_set_pin(instance->_channel, RMT_MODE_RX, static_cast<gpio_num_t>(instance->sensor.PinNumber));  // reset after using pin as output
-  rmt_rx_start(instance->_channel, 1);
+  rmt_rx_start(instance->_channel, true);
 
   err = gpio_set_direction((gpio_num_t) instance->sensor.PinNumber, GPIO_MODE_INPUT);
-//  err = gpio_set_pull_mode((gpio_num_t) instance->sensor.PinNumber, GPIO_PULLUP_ONLY);
+  err = gpio_set_pull_mode((gpio_num_t) instance->sensor.PinNumber, GPIO_PULLUP_ONLY);
 
-  //vTaskDelay(5); // wait for the maximum receive time
-  instance->hwdTim->Delay(5000);
   xTaskNotifyGive(instance->_task);
 }
 
@@ -231,7 +233,7 @@ void DHT::_decode(rmt_item32_t* data, int numItems) {
       uint8_t pulse = data[i].duration0 + data[i].duration1;
       if (pulse > 55 && pulse < 145) {
         _data[(i - 1) / 8] <<= 1;  // shift left
-        if (pulse > 120) {
+        if (pulse > 110) {
           _data[(i - 1) / 8] |= 1;
         }
       } else {

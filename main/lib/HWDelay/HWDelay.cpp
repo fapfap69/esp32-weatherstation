@@ -17,11 +17,29 @@
 
 static const char* TAG = "HWDELAY";
 
+
+// Define the static Singleton pointer
+HWDelay* HWDelay::inst_ = NULL;
+esp_timer_handle_t HWDelay::oneshot_timer = NULL;
+bool HWDelay::isValid = false;
+unsigned long HWDelay::uDelay = 0;
+EventGroupHandle_t HWDelay::hwdeEG = NULL;
+int HWDelay::HWDELAYSET = BIT0;
+
 static void oneshot_timer_callback(void* theHinstance);
+
+HWDelay* HWDelay::getInstance() {
+   if (inst_ == NULL) {
+	   printf("Create timer !\n");
+       inst_ = new HWDelay(1000);
+   }
+   return(inst_);
+}
+
 
 HWDelay::HWDelay(unsigned long microseconds) {
 
-	uDelay = 1000;
+	uDelay = microseconds;
 	hwdeEG = xEventGroupCreate();
 	xEventGroupClearBits(hwdeEG, HWDELAYSET);
 
@@ -71,8 +89,12 @@ bool HWDelay::Delay() {
     	return(false);
     }
     xEventGroupClearBits(hwdeEG, HWDELAYSET);
-    ESP_LOGD(TAG, "Started timer, time since boot: %lld us", esp_timer_get_time());
+    ESP_LOGD(TAG, "Started One-shot timer, time since boot: %lld us", esp_timer_get_time());
     uxBits = xEventGroupWaitBits(hwdeEG, HWDELAYSET , pdTRUE, pdTRUE, xTicksToWait);
+    if(uxBits != 0) {
+    	ESP_LOGE(TAG, "The Delay() exits for TIMEOUT, some thing goes wrong ?!");
+    	return(false);
+    }
     return(true);
 }
 

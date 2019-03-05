@@ -44,7 +44,7 @@ MLX90393::MLX90393(I2Cmaster *Wire) {
 	base_xy_sens_hc0xc = 0.150f;
 	base_z_sens_hc0xc = 0.242f;
 
-	hwdTim = new HWDelay(1000);
+	hwdTim = HWDelay::getInstance();
 
 }
 

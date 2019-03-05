@@ -25,7 +25,7 @@ Barometer::Barometer(I2Cmaster *Wire) {
 	theI2Cport = Wire;
 	pressureSlm = 1013.25; // assume the base pressure SLM
 	calibParam = Parameters();
-	hwdTim = new HWDelay(1000);
+	hwdTim = HWDelay::getInstance();
 	return;
 }
 

@@ -19,21 +19,28 @@
 class HWDelay
 {
   private:
-	esp_timer_handle_t oneshot_timer;
-	bool isValid;
-	unsigned long uDelay;
- public:
-	EventGroupHandle_t hwdeEG;
-	int HWDELAYSET = BIT0;
+	static HWDelay* inst_;   // The one, single instance
+	static esp_timer_handle_t oneshot_timer;
+	static bool isValid;
+	static unsigned long uDelay;
 
   public:
-	HWDelay(unsigned long microseconds);
-	~HWDelay();
+	static EventGroupHandle_t hwdeEG;
+	static int HWDELAYSET;
+
+  public:
+	static HWDelay* getInstance();
 	bool Delay();
 	bool Delay(unsigned long microseconds);
 	bool SetUp(unsigned long microseconds);
 	unsigned long GetDelay() { return(uDelay); };
 	bool isTimerValid() { return(isValid); };
+
+  private:
+	HWDelay(unsigned long microseconds);
+	~HWDelay();
+	HWDelay& operator=(const HWDelay&);
+
 };
 
 
