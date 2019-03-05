@@ -18,12 +18,14 @@ Ver. 0.1
 #define BMP085_DEVICE 0x77    // BMP device address
 #define OVERSAMPLING 0 // low power consuming
 
+static const char*TAG = "BAROMETER";
 
 // class constructor
 Barometer::Barometer(I2Cmaster *Wire) {
 	theI2Cport = Wire;
 	pressureSlm = 1013.25; // assume the base pressure SLM
 	calibParam = Parameters();
+	hwdTim = new HWDelay(1000);
 	return;
 }
 
@@ -101,7 +103,8 @@ unsigned long Barometer::readPressureUnc()
 		return -1;
 	}
 
-	vTaskDelay((2 + (3<<OVERSAMPLING)) / portTICK_RATE_MS);
+	hwdTim->Delay(1500 + (3<<OVERSAMPLING) * 1000);
+//	vTaskDelay((2 + (3<<OVERSAMPLING)) / portTICK_RATE_MS);
 
 	err = readFrom(PRESSUREREGISTER1_ADD, 1, &msb);
 	if(err != ESP_OK) {
@@ -164,9 +167,10 @@ int Barometer::readTemperatureUnc()
 		ESP_LOGE(TAG, "writing to read temperature !");
 		return -1;
 	}
-	vTaskDelay(5 / portTICK_RATE_MS);
+	//vTaskDelay(5 / portTICK_RATE_MS);
+	hwdTim->Delay(4500);
 
- 	// Read two bytes from registers 0xF6 and 0xF7
+	// Read two bytes from registers 0xF6 and 0xF7
 	temp = readIntFrom(TEMPERATUREREGISTER_ADD);
 	ESP_LOGD(TAG, "Read Unc Temperature %d (%04X)", temp, temp);
 

@@ -5,6 +5,8 @@
  *      Author: fap
  */
 
+#include "HWDelay.hpp"
+
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -13,7 +15,7 @@
 #include "esp_sleep.h"
 #include "sdkconfig.h"
 
-#include "HWDelay.h"
+static const char* TAG = "HWDELAY";
 
 static void oneshot_timer_callback(void* theHinstance);
 
@@ -23,12 +25,11 @@ HWDelay::HWDelay(unsigned long microseconds) {
 	hwdeEG = xEventGroupCreate();
 	xEventGroupClearBits(hwdeEG, HWDELAYSET);
 
-	const esp_timer_create_args_t oneshot_timer_args = {
-	            .callback = &oneshot_timer_callback,
-	            /* argument specified here will be passed to timer callback function */
-	            .arg = (void*) this,
-	            .name = "one-shot"
-	    };
+	esp_timer_create_args_t oneshot_timer_args;
+	oneshot_timer_args.callback = &oneshot_timer_callback;
+	/* argument specified here will be passed to timer callback function */
+	oneshot_timer_args.arg = (void*) this;
+	oneshot_timer_args.name = "one-shot";
 
 	isValid = false;
 	if( esp_timer_create(&oneshot_timer_args, &oneshot_timer) != ESP_OK) {
@@ -45,14 +46,14 @@ HWDelay::HWDelay(unsigned long microseconds) {
 
 HWDelay::~HWDelay()
 {
-	if(oneshot_timer != NULL())
+	if(oneshot_timer != NULL)
 		esp_timer_delete(oneshot_timer);
 	return;
 }
 
 bool HWDelay::SetUp(unsigned long microseconds) {
 	if(microseconds < 20 || microseconds > 1000000 ) {
-		ESP_LOGE(TAG, "Invalid delay value = %d !", microseconds);
+		ESP_LOGE(TAG, "Invalid delay value = %lud !", microseconds);
 		return(false);
 	}
 	uDelay = microseconds;
@@ -84,7 +85,7 @@ bool HWDelay::Delay(unsigned long microseconds) {
 static void oneshot_timer_callback(void* theHinstance)
 {
     int64_t time_since_boot = esp_timer_get_time();
-    ESP_LOGD(TAG, "One-shot timer called, time since boot: %lld us", time_since_boot);
+    ESP_LOGD(TAG, "One-shot timer END ! Time since boot: %lld us", time_since_boot);
     HWDelay *theHins = (HWDelay *) theHinstance;
     xEventGroupSetBits(theHins->hwdeEG, theHins->HWDELAYSET);
     return;

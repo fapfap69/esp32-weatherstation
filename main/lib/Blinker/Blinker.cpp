@@ -18,7 +18,6 @@
 #include "sdkconfig.h"
 #include "rom/gpio.h"
 
-
 #define BLINK_GPIO CONFIG_BLINK_GPIO
 
 // Define the static Singleton pointer

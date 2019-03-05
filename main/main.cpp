@@ -45,7 +45,7 @@
 
 #include "station.h"
 
-static const char*TAG = "ws_main";
+static const char* TAG = "ws_main";
 
 extern "C" {
     void app_main();

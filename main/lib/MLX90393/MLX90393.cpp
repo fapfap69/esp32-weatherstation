@@ -44,6 +44,7 @@ MLX90393::MLX90393(I2Cmaster *Wire) {
 	base_xy_sens_hc0xc = 0.150f;
 	base_z_sens_hc0xc = 0.242f;
 
+	hwdTim = new HWDelay(1000);
 
 }
 
@@ -68,7 +69,8 @@ uint8_t MLX90393::init(uint8_t Address)
 uint8_t MLX90393::readData(txyz& data)
 {
 	uint8_t status1 = startMeasurement(X_FLAG | Y_FLAG | Z_FLAG | T_FLAG);
-	ets_delay_us( getMillisDelay() * 1000 ); //
+	hwdTim->Delay( getMillisDelay() * 1000);
+//	ets_delay_us( getMillisDelay() * 1000 ); //
     txyzRaw raw_txyz;
     uint8_t status2 = readMeasurement(X_FLAG | Y_FLAG | Z_FLAG | T_FLAG, raw_txyz);
 	data = convertRaw(raw_txyz);
@@ -78,7 +80,8 @@ uint8_t MLX90393::readData(txyz& data)
 uint8_t MLX90393::readRawData(txyzRaw& data)
 {
 	uint8_t status1 = startMeasurement(X_FLAG | Y_FLAG | Z_FLAG | T_FLAG);
-	ets_delay_us( getMillisDelay() * 1000 ); //
+	hwdTim->Delay( getMillisDelay() * 1000);
+	//ets_delay_us( getMillisDelay() * 1000 ); //
     uint8_t status2 = readMeasurement(X_FLAG | Y_FLAG | Z_FLAG | T_FLAG, data);
 	return checkStatus(status1) | checkStatus(status2);
 }
@@ -194,7 +197,8 @@ uint8_t MLX90393::reset()
 {
   //cache_invalidate();
   uint8_t status = sendCommand(CMD_RESET);
-  ets_delay_us( 2000 ); // POR is 1.6ms max. Software reset time limit is not specified.
+  hwdTim->Delay( 2000);
+  //ets_delay_us( 2000 ); // POR is 1.6ms max. Software reset time limit is not specified.
   return status;
 }
 

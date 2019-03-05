@@ -11,10 +11,10 @@ Ver. 0.1
 #define BAROMETER_DEF
 
 //#include <Arduino.h>
+#include "../HWDelay/HWDelay.hpp"
 #include "../i2c/i2c.h"
 
 // Barometer based on BMP085
-#define TAG "BAROMETER"
 
 #define WRITEREGISTER_ADD 0xF4
 #define TEMPERATUREREGISTER_ADD 0xF6
@@ -24,7 +24,7 @@ Ver. 0.1
 
 
 #define REQUESTTEMPERATURE 0x2E
-#define REQUESTPRESSURE 0x2E
+#define REQUESTPRESSURE 0x34
 
 struct Parameters {
 	int16_t ac1;
@@ -75,7 +75,7 @@ class Barometer
 	Parameters calibParam;
 	unsigned long uncompensatedPress;
 	int baseQuota;
-
+	HWDelay *hwdTim;
 };
 
 #endif

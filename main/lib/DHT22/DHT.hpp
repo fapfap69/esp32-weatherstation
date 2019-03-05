@@ -20,6 +20,8 @@ extern "C" {
 //  #include <functional>
 }
 
+#include "../HWDelay/HWDelay.hpp"
+
 //namespace esp32DHTInternals {
 
 //typedef std::function<void(float, float)> OnData_CB;
@@ -61,6 +63,7 @@ class DHT {
 	  TaskHandle_t _task;
 	  uint8_t _tipo;
 	  RingbufHandle_t _ringBuf;
+	  HWDelay *hwdTim;
 
 	public:
 		DHT();

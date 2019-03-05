@@ -14,7 +14,6 @@
 
 static const char*TAG = "DHT";
 
-
 DHT::DHT() :
   _status(DHT_ERR_NODATA),
   _data{0},
@@ -22,7 +21,10 @@ DHT::DHT() :
   _timer(nullptr),
   _task(nullptr),
   _tipo(0),
-  _ringBuf(nullptr) {}
+  _ringBuf(nullptr) {
+  hwdTim = new HWDelay(1000);
+}
+
 
 DHT::~DHT() {
   if (_timer) {  // if _timer is true, setup() has been called
@@ -190,7 +192,8 @@ void DHT::_handleTimer(DHT* instance) {
   err = gpio_set_direction((gpio_num_t) instance->sensor.PinNumber, GPIO_MODE_INPUT);
 //  err = gpio_set_pull_mode((gpio_num_t) instance->sensor.PinNumber, GPIO_PULLUP_ONLY);
 
-  vTaskDelay(5); // wait for the maximum receive time
+  //vTaskDelay(5); // wait for the maximum receive time
+  instance->hwdTim->Delay(5000);
   xTaskNotifyGive(instance->_task);
 }
 

@@ -5,16 +5,14 @@
  *      Author: fap
  */
 
-#ifndef MAIN_LIB_HWDELAY_HWDELAY_H_
-#define MAIN_LIB_HWDELAY_HWDELAY_H_
+#ifndef MAIN_LIB_HWDELAY_HWDELAY_HPP_
+#define MAIN_LIB_HWDELAY_HWDELAY_HPP_
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
 #include "freertos/event_groups.h"
-
-static const char* TAG = "HWDELAY";
 
 #define HWDELAY_TIMEOUT_MILLISEC 10000
 
@@ -24,8 +22,9 @@ class HWDelay
 	esp_timer_handle_t oneshot_timer;
 	bool isValid;
 	unsigned long uDelay;
+ public:
 	EventGroupHandle_t hwdeEG;
-	const int HWDELAYSET = BIT0;
+	int HWDELAYSET = BIT0;
 
   public:
 	HWDelay(unsigned long microseconds);
@@ -34,9 +33,10 @@ class HWDelay
 	bool Delay(unsigned long microseconds);
 	bool SetUp(unsigned long microseconds);
 	unsigned long GetDelay() { return(uDelay); };
+	bool isTimerValid() { return(isValid); };
 };
 
 
 
 
-#endif /* MAIN_LIB_HWDELAY_HWDELAY_H_ */
+#endif /* MAIN_LIB_HWDELAY_HWDELAY_HPP_ */

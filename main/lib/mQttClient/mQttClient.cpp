@@ -14,7 +14,7 @@
 
 #include "../GeneralUtils/GeneralUtils.h"
 
-#define TAG "MQTT"
+static const char* TAG = "MQTT";
 
 mQttPubList::mQttPubList()
 {

@@ -38,7 +38,8 @@
 
 #include "station.h"
 
-static const char*TAG = "WeSta";
+
+static const char* TAG = "WeSta";
 
 WeatherStation::WeatherStation() {
 	// TODO Auto-generated constructor stub
