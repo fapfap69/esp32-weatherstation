@@ -22,10 +22,18 @@ static const char*TAG = "BAROMETER";
 
 // class constructor
 Barometer::Barometer(I2Cmaster *Wire) {
+
+	//  esp_timer_create_args_t _timerConfig;
+	_timerConfig.arg = static_cast<void*>(this);
+	_timerConfig.callback = reinterpret_cast<esp_timer_cb_t>(_handleTimer);
+	_timerConfig.dispatch_method = ESP_TIMER_TASK;
+	_timerConfig.name = "esp32DHTTimer";
+	//  esp_timer_create(&_timerConfig, &_timer);
+
 	theI2Cport = Wire;
 	pressureSlm = 1013.25; // assume the base pressure SLM
 	calibParam = Parameters();
-	hwdTim = HWDelay::getInstance();
+//	hwdTim = HWDelay::getInstance();
 	return;
 }
 
@@ -49,6 +57,9 @@ double Barometer::readPressure() {
 
 	long x1, x2, x3, b3, b6, p;
 	unsigned long b4, b7, uncPress;
+
+	_task = xTaskGetCurrentTaskHandle(  );
+	esp_timer_create(&_timerConfig, &_timer);
 
 	// First get temperature for compensation
 	temperature = calculateTemperature();
@@ -87,6 +98,8 @@ double Barometer::readPressure() {
 	altitude = calculateAltitude(pressure);
 	ESP_LOGD(TAG, "temperature :%f Pressure %5.1f ", temperature, pressure);
 
+	esp_timer_delete(_timer);
+
 	return(pressure);
 }
 
@@ -103,7 +116,10 @@ unsigned long Barometer::readPressureUnc()
 		return -1;
 	}
 
-	hwdTim->Delay(1500 + (3<<OVERSAMPLING) * 1000);
+	esp_timer_start_once(_timer, 1500 + (3<<OVERSAMPLING) * 1000);  // timer is in microseconds
+	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // wait for timer notification
+
+//	hwdTim->Delay(1500 + (3<<OVERSAMPLING) * 1000);
 //	vTaskDelay((2 + (3<<OVERSAMPLING)) / portTICK_RATE_MS);
 
 	err = readFrom(PRESSUREREGISTER1_ADD, 1, &msb);
@@ -127,6 +143,18 @@ unsigned long Barometer::readPressureUnc()
 	up = (((unsigned long) msb << 16) | ((unsigned long) lsb << 8) | (unsigned long) xlsb) >> (8-OVERSAMPLING);
 
 	return up;
+}
+
+// after the 18msec timer do the read !
+void Barometer::_handleTimer(Barometer* instance) {
+  esp_err_t err;
+//  rmt_set_pin(instance->_channel, RMT_MODE_RX, static_cast<gpio_num_t>(instance->sensor.PinNumber));  // reset after using pin as output
+//  rmt_rx_start(instance->_channel, true);
+
+//  err = gpio_set_direction((gpio_num_t) instance->sensor.PinNumber, GPIO_MODE_INPUT);
+//  err = gpio_set_pull_mode((gpio_num_t) instance->sensor.PinNumber, GPIO_PULLUP_ONLY);
+
+  xTaskNotifyGive(instance->_task);
 }
 
 // Calculate the altitude
@@ -168,7 +196,10 @@ int Barometer::readTemperatureUnc()
 		return -1;
 	}
 	//vTaskDelay(5 / portTICK_RATE_MS);
-	hwdTim->Delay(4500);
+	//hwdTim->Delay(4500);
+
+	esp_timer_start_once(_timer, 4500);  // timer is in microseconds
+	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // wait for timer notification
 
 	// Read two bytes from registers 0xF6 and 0xF7
 	temp = readIntFrom(TEMPERATUREREGISTER_ADD);

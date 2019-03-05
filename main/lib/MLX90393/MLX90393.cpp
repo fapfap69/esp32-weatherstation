@@ -44,7 +44,13 @@ MLX90393::MLX90393(I2Cmaster *Wire) {
 	base_xy_sens_hc0xc = 0.150f;
 	base_z_sens_hc0xc = 0.242f;
 
-	hwdTim = HWDelay::getInstance();
+//	hwdTim = HWDelay::getInstance();
+	//  esp_timer_create_args_t _timerConfig;
+	_timerConfig.arg = static_cast<void*>(this);
+	_timerConfig.callback = reinterpret_cast<esp_timer_cb_t>(_handleTimer);
+	_timerConfig.dispatch_method = ESP_TIMER_TASK;
+	_timerConfig.name = "esp32DHTTimer";
+	//  esp_timer_create(&_timerConfig, &_timer);
 
 }
 
@@ -68,21 +74,40 @@ uint8_t MLX90393::init(uint8_t Address)
 }
 uint8_t MLX90393::readData(txyz& data)
 {
+	_task = xTaskGetCurrentTaskHandle(  );
+	esp_timer_create(&_timerConfig, &_timer);
+
 	uint8_t status1 = startMeasurement(X_FLAG | Y_FLAG | Z_FLAG | T_FLAG);
-	hwdTim->Delay( getMillisDelay() * 1000);
+
+
+	//hwdTim->Delay( getMillisDelay() * 1000);
 //	ets_delay_us( getMillisDelay() * 1000 ); //
+	esp_timer_start_once(_timer, getMillisDelay() * 1000);  // timer is in microseconds
+	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // wait for timer notification
+
+
     txyzRaw raw_txyz;
     uint8_t status2 = readMeasurement(X_FLAG | Y_FLAG | Z_FLAG | T_FLAG, raw_txyz);
 	data = convertRaw(raw_txyz);
+
+	esp_timer_delete(_timer);
 	return checkStatus(status1) | checkStatus(status2);
 }
 
 uint8_t MLX90393::readRawData(txyzRaw& data)
 {
+	_task = xTaskGetCurrentTaskHandle(  );
+	esp_timer_create(&_timerConfig, &_timer);
+
 	uint8_t status1 = startMeasurement(X_FLAG | Y_FLAG | Z_FLAG | T_FLAG);
-	hwdTim->Delay( getMillisDelay() * 1000);
+	//hwdTim->Delay( getMillisDelay() * 1000);
 	//ets_delay_us( getMillisDelay() * 1000 ); //
+	esp_timer_start_once(_timer, getMillisDelay() * 1000);  // timer is in microseconds
+	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // wait for timer notification
+
     uint8_t status2 = readMeasurement(X_FLAG | Y_FLAG | Z_FLAG | T_FLAG, data);
+	esp_timer_delete(_timer);
+
 	return checkStatus(status1) | checkStatus(status2);
 }
 
@@ -195,10 +220,20 @@ MLX90393::txyz MLX90393::convertRaw(MLX90393::txyzRaw raw)
 
 uint8_t MLX90393::reset()
 {
+	_task = xTaskGetCurrentTaskHandle(  );
+	esp_timer_create(&_timerConfig, &_timer);
+
   //cache_invalidate();
   uint8_t status = sendCommand(CMD_RESET);
-  hwdTim->Delay( 2000);
+
+  esp_timer_start_once(_timer, 2000);  // timer is in microseconds
+  ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // wait for timer notification
+
+  //hwdTim->Delay( 2000);
   //ets_delay_us( 2000 ); // POR is 1.6ms max. Software reset time limit is not specified.
+
+  esp_timer_delete(_timer);
+
   return status;
 }
 
@@ -350,5 +385,16 @@ uint8_t MLX90393::getHallConf(uint8_t& hallconf)
   uint8_t status = readRegister(HALLCONF_REG, &reg_val);
   hallconf = (reg_val & HALLCONF_MASK) >> HALLCONF_SHIFT;
   return checkStatus(status);
+}
+
+void MLX90393::_handleTimer(MLX90393* instance) {
+  esp_err_t err;
+//  rmt_set_pin(instance->_channel, RMT_MODE_RX, static_cast<gpio_num_t>(instance->sensor.PinNumber));  // reset after using pin as output
+//  rmt_rx_start(instance->_channel, true);
+
+//  err = gpio_set_direction((gpio_num_t) instance->sensor.PinNumber, GPIO_MODE_INPUT);
+//  err = gpio_set_pull_mode((gpio_num_t) instance->sensor.PinNumber, GPIO_PULLUP_ONLY);
+
+  xTaskNotifyGive(instance->_task);
 }
 

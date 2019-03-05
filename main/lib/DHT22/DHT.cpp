@@ -22,15 +22,15 @@ DHT::DHT() :
   _task(nullptr),
   _tipo(0),
   _ringBuf(nullptr) {
-  hwdTim = HWDelay::getInstance();
+//  hwdTim = HWDelay::getInstance();
 }
 
 
 DHT::~DHT() {
-  if (_timer) {  // if _timer is true, setup() has been called
+  if (_channel) {  // if _timer is true, setup() has been called
                  // so RMT driver is loaded and the aux task is
                  // running
-    esp_timer_delete(_timer);
+ //   esp_timer_delete(_timer);
     rmt_driver_uninstall(_channel);
     vTaskDelete(_task);
   }
@@ -45,12 +45,12 @@ void DHT::Setup(uint8_t senstype, gpio_num_t pin, rmt_channel_t channel) {
   _channel = channel;
   _tipo = senstype;
 
-  esp_timer_create_args_t _timerConfig;
+//  esp_timer_create_args_t _timerConfig;
   _timerConfig.arg = static_cast<void*>(this);
   _timerConfig.callback = reinterpret_cast<esp_timer_cb_t>(_handleTimer);
   _timerConfig.dispatch_method = ESP_TIMER_TASK;
   _timerConfig.name = "esp32DHTTimer";
-  esp_timer_create(&_timerConfig, &_timer);
+//  esp_timer_create(&_timerConfig, &_timer);
 
   rmt_config_t config;
   config.rmt_mode = RMT_MODE_RX;
@@ -157,6 +157,7 @@ void DHT::_readSensor() {
 
 	ESP_LOGD(TAG, "Start the reading of sensor...");
 	_task = xTaskGetCurrentTaskHandle(  );
+	esp_timer_create(&_timerConfig, &_timer);
 
 	// sensor.PinNumber should be set to OUTPUT and HIGH
 	err = gpio_set_direction(sensor.PinNumber, GPIO_MODE_OUTPUT);
@@ -167,8 +168,16 @@ void DHT::_readSensor() {
 
 	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // wait for timer notification
 
+	rmt_set_pin(_channel, RMT_MODE_RX, static_cast<gpio_num_t>(sensor.PinNumber));  // reset after using pin as output
+	rmt_rx_start(_channel, true);
+	err = gpio_set_direction((gpio_num_t) sensor.PinNumber, GPIO_MODE_INPUT);
+	err = gpio_set_pull_mode((gpio_num_t) sensor.PinNumber, GPIO_PULLUP_ONLY);
+
     //vTaskDelay(5); // wait for the maximum receive time
-    hwdTim->Delay(5000);
+ //   hwdTim->Delay(5000);
+	esp_timer_start_once(_timer, 5 * 1000);  // timer is in microseconds
+
+	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);  // wait for timer notification
 
 	rmt_item32_t* items = static_cast<rmt_item32_t*>(xRingbufferReceive(_ringBuf, &rx_size, 1000));
 	ESP_LOGD(TAG, "Now we have data. %d Items",(int)rx_size/sizeof(rmt_item32_t));
@@ -183,6 +192,9 @@ void DHT::_readSensor() {
 	err = gpio_set_direction(sensor.PinNumber, GPIO_MODE_OUTPUT);
 	gpio_set_level(sensor.PinNumber, 1 ); //
 	ESP_LOGD(TAG, "End reading ! (Exitus = %s)", getError());
+
+	esp_timer_delete(_timer);
+
 	return;
 }
 
@@ -190,11 +202,11 @@ void DHT::_readSensor() {
 // after the 18msec timer do the read !
 void DHT::_handleTimer(DHT* instance) {
   esp_err_t err;
-  rmt_set_pin(instance->_channel, RMT_MODE_RX, static_cast<gpio_num_t>(instance->sensor.PinNumber));  // reset after using pin as output
-  rmt_rx_start(instance->_channel, true);
+//  rmt_set_pin(instance->_channel, RMT_MODE_RX, static_cast<gpio_num_t>(instance->sensor.PinNumber));  // reset after using pin as output
+//  rmt_rx_start(instance->_channel, true);
 
-  err = gpio_set_direction((gpio_num_t) instance->sensor.PinNumber, GPIO_MODE_INPUT);
-  err = gpio_set_pull_mode((gpio_num_t) instance->sensor.PinNumber, GPIO_PULLUP_ONLY);
+//  err = gpio_set_direction((gpio_num_t) instance->sensor.PinNumber, GPIO_MODE_INPUT);
+//  err = gpio_set_pull_mode((gpio_num_t) instance->sensor.PinNumber, GPIO_PULLUP_ONLY);
 
   xTaskNotifyGive(instance->_task);
 }

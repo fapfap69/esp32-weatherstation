@@ -20,7 +20,7 @@ extern "C" {
 //  #include <functional>
 }
 
-#include "../HWDelay/HWDelay.hpp"
+//#include "../HWDelay/HWDelay.hpp"
 
 //namespace esp32DHTInternals {
 
@@ -63,7 +63,8 @@ class DHT {
 	  TaskHandle_t _task;
 	  uint8_t _tipo;
 	  RingbufHandle_t _ringBuf;
-	  HWDelay *hwdTim;
+	//  HWDelay *hwdTim;
+	  esp_timer_create_args_t _timerConfig;
 
 	public:
 		DHT();

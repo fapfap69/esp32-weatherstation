@@ -8,7 +8,7 @@
 #ifndef MAIN_LIB_MLX90393_H_
 #define MAIN_LIB_MLX90393_H_
 
-#include "../HWDelay/HWDelay.hpp"
+//#include "../HWDelay/HWDelay.hpp"
 #include "../i2c/i2c.h"
 
 
@@ -126,7 +126,11 @@ private:
 private:
 	I2Cmaster *i2c;
 	uint8_t i2cDevAddr;
-	HWDelay *hwdTim;
+//	HWDelay *hwdTim;
+	esp_timer_create_args_t _timerConfig;
+	static void _handleTimer(MLX90393* instance);
+	esp_timer_handle_t _timer;
+	TaskHandle_t _task;
 
 //float gain_multipliers[8];
 	float base_xy_sens_hc0;
