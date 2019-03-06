@@ -96,7 +96,7 @@ double Barometer::readPressure() {
 	pressure = (double)p / 100.0;  // hPas conversion
 	pressureSlm = pressure / pow(1-0.0000225577 * baseQuota, 5.25588);
 	altitude = calculateAltitude(pressure);
-	ESP_LOGD(TAG, "temperature :%f Pressure %5.1f ", temperature, pressure);
+	ESP_LOGD(TAG, "temperature :%f Pressure %5.1f PressureSLM %5.1f ", temperature, pressure, pressureSlm);
 
 	esp_timer_delete(_timer);
 
