@@ -20,7 +20,7 @@ extern "C" {
 //  #include <functional>
 }
 
-//#include "../HWDelay/HWDelay.hpp"
+#include "../HWDelay/HWDelay.hpp"
 
 //namespace esp32DHTInternals {
 
@@ -59,12 +59,12 @@ class DHT {
 	private:
 	  Humiditysensor sensor;
 	  rmt_channel_t _channel;
-	  esp_timer_handle_t _timer;
-	  TaskHandle_t _task;
+//	  esp_timer_handle_t _timer;
+//	  TaskHandle_t _task;
 	  uint8_t _tipo;
 	  RingbufHandle_t _ringBuf;
-	//  HWDelay *hwdTim;
-	  esp_timer_create_args_t _timerConfig;
+	  HWDelay *hwdTimer;
+//	  esp_timer_create_args_t _timerConfig;
 
 	public:
 		DHT();
@@ -85,7 +85,7 @@ class DHT {
   		float _decodeTemperature();
   		float _decodeHumidity();
 		void _readSensor();
-  		static void _handleTimer(DHT* instance);
+//  		static void _handleTimer(DHT* instance);
   		void _decode(rmt_item32_t* data, int numItems);
   		void _updatevalues();
 

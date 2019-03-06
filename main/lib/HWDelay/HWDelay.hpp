@@ -14,32 +14,45 @@
 #include "freertos/queue.h"
 #include "freertos/event_groups.h"
 
+#define HWDELAY_DEFAULT_DELAY 1000
 #define HWDELAY_TIMEOUT_MILLISEC 10000
+#define MAX_TIMERS_NUM 3
 
 class HWDelay
 {
+  public:
+	typedef uint16_t hwdHandler_t;
+	struct hwdCBargs {
+		int timerInd;
+		HWDelay* Hinstance;
+	};
+
   private:
 	static HWDelay* inst_;   // The one, single instance
-	static esp_timer_handle_t oneshot_timer;
-	static bool isValid;
-	static unsigned long uDelay;
+	static int  usedTimers;
+	static esp_timer_handle_t oneshot_timer[MAX_TIMERS_NUM];
+	static bool isValid[MAX_TIMERS_NUM];
+	static unsigned long uDelay[MAX_TIMERS_NUM];
+	static esp_timer_create_args_t oneshot_timer_args[MAX_TIMERS_NUM];
+	static SemaphoreHandle_t semaphore;
 
   public:
-	static EventGroupHandle_t hwdeEG;
+	static EventGroupHandle_t hwdeEG[MAX_TIMERS_NUM];
 	static int HWDELAYSET;
 
   public:
 	static HWDelay* getInstance();
-	bool Delay();
 	bool Delay(unsigned long microseconds);
-	bool SetUp(unsigned long microseconds);
-	unsigned long GetDelay() { return(uDelay); };
-	bool isTimerValid() { return(isValid); };
+
+	unsigned long GetDelay(hwdHandler_t aTimer);
+	bool isTimerValid(hwdHandler_t aTimer);
 
   private:
-	HWDelay(unsigned long microseconds);
+	HWDelay();
 	~HWDelay();
 	HWDelay& operator=(const HWDelay&);
+	hwdHandler_t setUp(unsigned long microseconds);
+	void deallocateTimer(hwdHandler_t aTimer);
 
 };
 

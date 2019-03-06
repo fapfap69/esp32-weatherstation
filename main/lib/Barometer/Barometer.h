@@ -11,7 +11,7 @@ Ver. 0.1
 #define BAROMETER_DEF
 
 //#include <Arduino.h>
-//#include "../HWDelay/HWDelay.hpp"
+#include "../HWDelay/HWDelay.hpp"
 #include "../i2c/i2c.h"
 
 // Barometer based on BMP085
@@ -75,11 +75,11 @@ class Barometer
 	Parameters calibParam;
 	unsigned long uncompensatedPress;
 	int baseQuota;
-//	HWDelay *hwdTim;
-	esp_timer_create_args_t _timerConfig;
-	static void _handleTimer(Barometer* instance);
-	esp_timer_handle_t _timer;
-	TaskHandle_t _task;
+	HWDelay *hwdTimer;
+//	esp_timer_create_args_t _timerConfig;
+//	static void _handleTimer(Barometer* instance);
+//	esp_timer_handle_t _timer;
+//	TaskHandle_t _task;
 
 
 };
