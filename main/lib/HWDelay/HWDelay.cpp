@@ -27,6 +27,8 @@ esp_timer_handle_t HWDelay::oneshot_timer[MAX_TIMERS_NUM] = { NULL, NULL };
 bool HWDelay::isValid[MAX_TIMERS_NUM] = { false, false };
 unsigned long HWDelay::uDelay[MAX_TIMERS_NUM] = { 0, 0 };
 EventGroupHandle_t HWDelay::hwdeEG[MAX_TIMERS_NUM] = { NULL };
+HWDelay::hwdCBargs HWDelay::theCBparam[MAX_TIMERS_NUM] = { NULL };
+
 esp_timer_create_args_t HWDelay::oneshot_timer_args[MAX_TIMERS_NUM] = { NULL, NULL, ESP_TIMER_TASK, NULL };
 SemaphoreHandle_t HWDelay::semaphore = NULL;
 
@@ -37,7 +39,7 @@ static void oneshot_timer_callback(void* theHinstance);
 
 HWDelay* HWDelay::getInstance() {
    if (inst_ == NULL) {
-	   ESP_LOGE(TAG, "Create HWD timer static hinstance !");
+	   ESP_LOGI(TAG, "Create HWD timer static hinstance !");
        inst_ = new HWDelay();
    }
    return(inst_);
@@ -46,7 +48,6 @@ HWDelay* HWDelay::getInstance() {
 
 HWDelay::HWDelay() {
 
-	hwdCBargs theCBparam;
 
 	vSemaphoreCreateBinary( semaphore );
 	if( semaphore == NULL ) {
@@ -57,13 +58,13 @@ HWDelay::HWDelay() {
 	for(int i=0;i<MAX_TIMERS_NUM; i++) {
 		uDelay[i] = HWDELAY_DEFAULT_DELAY;
 		hwdeEG[i] = xEventGroupCreate();
-		xEventGroupClearBits(hwdeEG[1], HWDELAYSET);
+		xEventGroupClearBits(hwdeEG[i], HWDELAYSET);
 
 		oneshot_timer_args[i].callback = &oneshot_timer_callback;
 		/* argument specified here will be passed to timer callback function */
-		theCBparam.timerInd = i;
-		theCBparam.Hinstance = this;
-		oneshot_timer_args[i].arg = (void*) &theCBparam;
+		theCBparam[i].timerInd = i;
+		theCBparam[i].Hinstance = this;
+		oneshot_timer_args[i].arg = (void*) &theCBparam[i];
 		oneshot_timer_args[i].name = "HWDelay-timer";
 		isValid[i] = false;
 	}
@@ -96,6 +97,7 @@ HWDelay::hwdHandler_t HWDelay::setUp(unsigned long microseconds) {
 				isValid[theTimerHandler-1] = true;
 				xEventGroupClearBits(hwdeEG[theTimerHandler-1], HWDELAYSET);
 				usedTimers++;
+				break;
 			}
 		}
 		if(theTimerHandler == 0)
@@ -110,6 +112,7 @@ HWDelay::hwdHandler_t HWDelay::setUp(unsigned long microseconds) {
 
 void HWDelay::deallocateTimer(hwdHandler_t aTimer) {
 
+	ESP_LOGD(TAG, "deallocate timer: %u ...", aTimer);
 	if( xSemaphoreTake( semaphore, ( TickType_t ) 20 ) == pdTRUE ) { // We were able to obtain the semaphore
 		usedTimers--;
 		uDelay[aTimer-1] = 0;
@@ -140,7 +143,7 @@ bool HWDelay::Delay(unsigned long microseconds) {
 		deallocateTimer(aTimerHandler);
 		return(false);
 	} else {
-		ESP_LOGD(TAG, "Timer %ud created ", aTimerHandler);
+		ESP_LOGD(TAG, "Timer %u created ", aTimerHandler);
 	}
 
 	EventBits_t uxBits;
@@ -152,15 +155,15 @@ bool HWDelay::Delay(unsigned long microseconds) {
 		deallocateTimer(aTimerHandler);
     	return(false);
     }
-    ESP_LOGD(TAG, "Started One-shot timer = %ud, time since boot: %lld us", aTimerHandler, esp_timer_get_time());
+    ESP_LOGD(TAG, "Started One-shot timer = %u, time since boot: %lld us", aTimerHandler, esp_timer_get_time());
 
     uxBits = xEventGroupWaitBits(hwdeEG[ind], HWDELAYSET , pdTRUE, pdTRUE, xTicksToWait);
-    if(uxBits != 0) {
-    	ESP_LOGE(TAG, "The Delay() for the timer = %ud exits for TIMEOUT, some thing goes wrong ?!", aTimerHandler);
-    	deallocateTimer(aTimerHandler);
+    if(uxBits == 0) {
+    	ESP_LOGE(TAG, "The Delay() for the timer = %u exits for TIMEOUT, some thing goes wrong ?!", aTimerHandler);
+//    	deallocateTimer(aTimerHandler);
     	return(false);
     }
-    deallocateTimer(aTimerHandler);
+//    deallocateTimer(aTimerHandler);
     return(true);
 }
 
@@ -172,5 +175,6 @@ static void oneshot_timer_callback(void* theTimerParam)
 
     int64_t time_since_boot = esp_timer_get_time();
     ESP_LOGD(TAG, "One-shot timer = %d END ! Time since boot: %lld us",par->timerInd+1, time_since_boot);
+    theHins->deallocateTimer(par->timerInd+1);
     return;
 }

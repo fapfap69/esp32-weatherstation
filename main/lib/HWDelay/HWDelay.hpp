@@ -37,6 +37,7 @@ class HWDelay
 	static SemaphoreHandle_t semaphore;
 
   public:
+	static hwdCBargs theCBparam[MAX_TIMERS_NUM];
 	static EventGroupHandle_t hwdeEG[MAX_TIMERS_NUM];
 	static int HWDELAYSET;
 
